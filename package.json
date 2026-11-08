@@ -1,0 +1,14 @@
+{
+  "name": "etukwaruu",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node tools/dev-server.js",
+    "test": "node tools/test-site.js",
+    "cut-truck": "node tools/cut-truck.js"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.16.0",
+    "sharp": "^0.35.5"
+  }
+}
