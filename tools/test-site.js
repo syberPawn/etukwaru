@@ -61,13 +61,11 @@ async function desktop(browser, port) {
   await wait(150);
 
   const start = await page.evaluate(() => __dump.dx);
-  await page.keyboard.down('ArrowUp');
   await page.keyboard.down('ArrowLeft');
   await wait(700);
   await page.keyboard.up('ArrowLeft');
-  await page.keyboard.up('ArrowUp');
   await wait(900);
-  check('gas plus arrow drives the truck', await page.evaluate(() => __dump.dx) < start - 10);
+  check('holding an arrow drives the truck', await page.evaluate(() => __dump.dx) < start - 10);
 
   // A hidden tab has to go quiet, and come back when it's visible again.
   const setHidden = value => page.evaluate(v => {
@@ -87,6 +85,18 @@ async function desktop(browser, port) {
 
 async function phoneRotation(browser, port) {
   const { page, problems } = await openPage(browser, port, { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const box = id => page.$eval(id, e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+  const [left, right, unloadBox] = [await box('#go-forward'), await box('#go-backward'), await box('#unload')];
+  check('phone: arrows sit under each thumb with Unload between',
+    left.x < 60 && right.x + right.w > 330 && unloadBox.x > left.x + left.w && unloadBox.x + unloadBox.w < right.x);
+
+  const start = await page.evaluate(() => __dump.dx);
+  await page.touchscreen.touchStart(left.x + left.w / 2, left.y + left.h / 2);
+  await wait(700);
+  await page.touchscreen.touchEnd();
+  await wait(900);
+  check('phone: holding an arrow drives the truck', await page.evaluate(() => __dump.dx) < start - 10);
+
   await page.tap('#unload');
   await page.waitForFunction('__dump.phase==="raise"', { timeout: 30000 });
   await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 2, isMobile: true, hasTouch: true });

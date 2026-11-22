@@ -25,7 +25,6 @@ const LOWER_TIME = 1.9;
 const TOP_SPEED = { forward: 310, backward: 180 };   // world units per second
 const ACCELERATION = 260;
 const ROLL_TO_STOP = 340;
-const GAS_TIMEOUT = 5;        // a gas pedal left on with no arrow pressed lets go
 const EDGE_GAP = 8;           // the truck stops this far from the screen edge
 const DRAG_THRESHOLD = 7;     // px of travel before a press becomes a drag
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -61,7 +60,7 @@ let view, world, parts, projectImages, bg, lip, grade;
 let items = [], truckBody, bedBody, gateCollider, leftWall, rightWall;
 let truckX, truckDX = 0, travel, moundX, hinge;
 let cycleFrom = 0, cycleTravel = 0;
-let driveDir = 0, gasDown = false, gasIdle = 0, driveV = 0, straining = false, wheelRoll = 0;
+let driveDir = 0, driveV = 0, straining = false, wheelRoll = 0;
 const dirHeld = { forward: false, backward: false };
 let phase = 'idle', phaseT = 0, tilt = 0, lowerFrom = 0;
 let held = null, press = null, hover = null;
@@ -264,7 +263,7 @@ function setHint(text) {
 
 
 function refreshButton() {
-  document.getElementById('gas').disabled = phase !== 'idle';
+  for (const id of ['go-forward', 'go-backward']) document.getElementById(id).disabled = phase !== 'idle';
   unloadBtn.textContent = 'Unload';
   if (phase !== 'idle') {
     unloadBtn.disabled = true;
@@ -278,7 +277,7 @@ function startUnload() {
   dropHeld();
   hover = null;
   canvas.style.cursor = '';
-  setGas(false);
+  releaseControls();
   driveV = 0;
   straining = false;
   initSound();
@@ -386,11 +385,7 @@ function pushLoad(dir) {
 function updateDrive(dt) {
   if (phase !== 'idle') return;
   const dir = driveDir;
-  const going = gasDown && dir !== 0;
-
-  // Gas engaged with nothing to steer is neutral, and gives up after a while.
-  gasIdle = gasDown && dir === 0 ? gasIdle + dt : 0;
-  if (gasIdle > GAS_TIMEOUT) setGas(false);
+  const going = dir !== 0;
 
   const { min, max } = driveLimits();
   const atEdge = dir < 0 ? truckDX <= min + .5 : dir > 0 && truckDX >= max - .5;
@@ -423,13 +418,6 @@ function updateDrive(dt) {
   }
 }
 
-function setGas(down) {
-  gasDown = down;
-  const gas = document.getElementById('gas');
-  gas.classList.toggle('is-down', down);
-  gas.setAttribute('aria-pressed', String(down));
-}
-
 /** The arrow pressed most recently wins while both are held. */
 function setArrow(name, down) {
   dirHeld[name] = down;
@@ -441,19 +429,17 @@ function setArrow(name, down) {
 }
 
 function releaseControls() {
-  setGas(false);
   setArrow('forward', false);
   setArrow('backward', false);
 }
 
 function wireDriveControls() {
-  const gas = document.getElementById('gas');
-  // Arrows are held. Each button tracks its own finger, so two thumbs work.
+  // Holding an arrow drives. Each button tracks its own finger, so two thumbs work.
   for (const [id, name] of [['go-forward', 'forward'], ['go-backward', 'backward']]) {
     const button = document.getElementById(id);
     const release = () => setArrow(name, false);
     button.addEventListener('pointerdown', e => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || button.disabled) return;
       initSound();
       button.setPointerCapture(e.pointerId);
       setArrow(name, true);
@@ -464,34 +450,15 @@ function wireDriveControls() {
     button.addEventListener('contextmenu', e => e.preventDefault());
   }
 
-  // A mouse has one pointer, so its click latches the pedal on and off.
-  // Fingers hold it down like the arrows.
-  gas.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || gas.disabled) return;
-    initSound();
-    if (e.pointerType === 'mouse') {
-      setGas(!gasDown);
-      return;
-    }
-    gas.setPointerCapture(e.pointerId);
-    setGas(true);
-  });
-  const releaseFinger = e => { if (e.pointerType !== 'mouse') setGas(false); };
-  gas.addEventListener('pointerup', e => { initSound(); releaseFinger(e); });
-  gas.addEventListener('pointercancel', releaseFinger);
-  gas.addEventListener('lostpointercapture', releaseFinger);
-  gas.addEventListener('contextmenu', e => e.preventDefault());
-
   const keyAction = {
     ArrowLeft: down => setArrow('forward', down),
     ArrowRight: down => setArrow('backward', down),
-    ArrowUp: down => { if (!gas.disabled || !down) setGas(down); },
   };
   addEventListener('keydown', e => {
     const action = keyAction[e.key];
     if (!action || dialog.open) return;
     e.preventDefault();
-    if (e.repeat) return;
+    if (e.repeat || phase !== 'idle') return;
     initSound();
     action(true);
   });
@@ -503,7 +470,7 @@ let lastDriven = 0, nextEngineUpdate = 0, nextBeep = 0;
 
 function updateDriveSound(now) {
   if (phase !== 'idle') return;
-  const active = gasDown || Math.abs(driveV) > 2;
+  const active = driveDir !== 0 || Math.abs(driveV) > 2;
   if (!active) {
     if (now - lastDriven > 900) engineStop();
     return;
@@ -512,8 +479,7 @@ function updateDriveSound(now) {
   engineStart();
   if (now > nextEngineUpdate) {
     const pace = Math.min(1, Math.abs(driveV) / TOP_SPEED.forward);
-    const going = gasDown && driveDir !== 0;
-    engineThrottle(straining ? 1 : going ? .4 + pace * .55 : gasDown ? .28 : .15 + pace * .3);
+    engineThrottle(straining ? 1 : driveDir !== 0 ? .4 + pace * .55 : .15 + pace * .3);
     nextEngineUpdate = now + 100;
   }
   if (driveV > 5 && now > nextBeep) {
@@ -711,7 +677,7 @@ function render(now) {
 
   const truckAt = truckX + truckDX;
   const driving = phase === 'reverse' || phase === 'pour' || driveV !== 0;
-  const running = (phase !== 'idle' || gasDown || driveV !== 0) && !reduceMotion;
+  const running = (phase !== 'idle' || driveDir !== 0 || driveV !== 0) && !reduceMotion;
   const bob = running ? Math.sin(t * 41) * (straining ? 2.4 : .7) + (driving ? Math.sin(t * 13) * 1.4 : 0) : 0;
   const onTruck = paint => {
     ctx.save();
@@ -869,11 +835,17 @@ function buildSortedPile() {
 /* ---------- Layout ---------- */
 
 function placeControls() {
+  if (view.narrow) {
+    // Phones put it in the thumb row, between the two arrows.
+    const pad = document.getElementById('go-forward').getBoundingClientRect();
+    controls.style.left = `${view.vw / 2}px`;
+    controls.style.top = `${pad.top + pad.height / 2}px`;
+    return;
+  }
   const screenX = (truckX + view.offX) * view.scale;
   const groundPx = (GROUND - view.offY) * view.scale;
   controls.style.left = `${clamp(screenX, 110, view.vw - 110)}px`;
-  // Phones sit it higher, leaving the bottom of the screen for the pedals.
-  controls.style.top = `${groundPx + (view.vh - groundPx) * (view.narrow ? .3 : .5)}px`;
+  controls.style.top = `${groundPx + (view.vh - groundPx) * .5}px`;
 }
 
 function repaint() {

@@ -85,7 +85,7 @@ html, body {
   filter: grayscale(.8) brightness(.62);
 }
 
-#hint:empty { visibility: hidden; }
+#hint:empty { display: none; }
 
 #hint {
   margin: 0;
@@ -101,17 +101,13 @@ html, body {
   border-radius: 3px;
 }
 
-/* Game-style controls: direction under the left thumb, gas under the right. */
-#steer,
-#gas {
+/* Game-style controls: hold an arrow to drive. */
+#steer {
   --pad: clamp(72px, 11vmin, 104px);
   --edge: clamp(16px, 5vw, 96px);
   --lift: max(clamp(18px, 5vh, 56px), env(safe-area-inset-bottom));
   position: fixed;
   bottom: var(--lift);
-}
-
-#steer {
   left: max(var(--edge), env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
@@ -160,51 +156,36 @@ html, body {
     0 3px 8px rgba(0, 0, 0, .55);
 }
 
-.arrows button:focus-visible,
-#gas:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.arrows button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
-/* A ridged steel pedal that tips down while it's engaged. */
-#gas {
-  right: max(var(--edge), env(safe-area-inset-right));
-  width: calc(var(--pad) * 1.18);
-  height: calc(var(--pad) * 1.42);
-  padding: 0;
-  border: 4px solid var(--hazard);
-  border-radius: 12px 12px 20px 20px;
-  background:
-    repeating-linear-gradient(180deg, rgba(0, 0, 0, .3) 0 6px, rgba(255, 255, 255, .14) 6px 14px),
-    linear-gradient(180deg, #b9bbbb, #6f7274);
-  color: #fff;
-  font: 400 clamp(22px, 3.4vmin, 32px)/1 Impact, "Arial Black", system-ui, sans-serif;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  text-shadow: 0 2px 3px #000, 0 0 6px #000;
-  box-shadow: 0 8px 0 #24211b, 0 14px 22px rgba(0, 0, 0, .6);
-  cursor: pointer;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  transform-origin: 50% 100%;
-  transition: transform .07s ease, box-shadow .07s ease, filter .2s ease;
-}
-
-#gas.is-down {
-  transform: perspective(240px) rotateX(24deg) translateY(4px);
-  border-color: #ffe27a;
-  box-shadow: 0 2px 0 #24211b, 0 4px 8px rgba(0, 0, 0, .5), 0 0 22px rgba(255, 210, 90, .75);
-}
-
-#gas:disabled {
+.arrows button:disabled {
   cursor: default;
   filter: grayscale(.8) brightness(.6);
 }
 
+/* Touch screens and tall windows: one arrow under each thumb, Unload between
+   them (main.js lines it up with this row). */
+@media (pointer: coarse), (max-aspect-ratio: 23/20) {
+  #steer {
+    --pad: clamp(76px, 20vmin, 96px);
+    right: max(var(--edge), env(safe-area-inset-right));
+    align-items: stretch;
+    pointer-events: none;
+  }
+
+  .arrows { justify-content: space-between; }
+  .arrows button { pointer-events: auto; }
+}
+
+@media (max-aspect-ratio: 23/20) {
+  #unload { padding-inline: clamp(20px, 6vw, 44px); }
+}
+
 #mute {
   position: fixed;
-  top: 12px;
-  right: 12px;
-  min-height: 40px;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  min-height: 44px;
   padding: 6px 14px;
   border: 2px solid #1a1408;
   border-radius: 3px;
