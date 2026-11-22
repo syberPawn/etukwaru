@@ -31,16 +31,32 @@
 </nav>
 
 <dialog id="tag" aria-labelledby="tag-name">
-  <div class="tag-card">
-    <span class="tag-hole" aria-hidden="true"></span>
+  <article class="paper" tabindex="-1" autofocus>
     <button id="tag-close" type="button" aria-label="Close">×</button>
-    <p class="tag-kicker">Salvage tag</p>
+    <header class="paper-head">
+      <span class="paper-seal" aria-hidden="true"></span>
+      <div>
+        <p class="paper-gov">Government of Etukwaru</p>
+        <p class="paper-dept">Department of Waste &amp; Salvage</p>
+      </div>
+    </header>
+    <div class="paper-form">
+      <span>Salvage record · Form WD-27</span>
+      <span>File no. <span id="tag-file" class="paper-typed"></span></span>
+    </div>
+    <p id="tag-stamp" class="paper-stamp"></p>
     <h2 id="tag-name"></h2>
     <p id="tag-brief"></p>
     <dl id="tag-fields"></dl>
-    <a id="tag-visit" class="tag-visit" target="_blank" rel="noopener">Visit</a>
-    <span id="tag-novisit" class="tag-visit is-off">No link yet</span>
-  </div>
+    <div class="paper-actions">
+      <a id="tag-visit" class="paper-btn is-main" target="_blank" rel="noopener">Visit site <span aria-hidden="true">↗</span></a>
+      <a id="tag-code" class="paper-btn" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+    </div>
+    <footer class="paper-foot">
+      <span>Received at the dump</span>
+      <span class="paper-officer"><span class="paper-sign" aria-hidden="true">Etukwaru</span>Officer in charge</span>
+    </footer>
+  </article>
 </dialog>
 
 <noscript><p class="noscript">The truck needs JavaScript to tip.</p></noscript>

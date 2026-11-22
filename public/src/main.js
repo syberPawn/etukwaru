@@ -815,18 +815,32 @@ function onPointerUp(e) {
   press = null;
 }
 
+// Only plain web addresses become buttons.
+const webLink = url => (typeof url === 'string' && /^https?:\/\//i.test(url) ? url : null);
+
 function openTag(project) {
+  const year = String(project.filed ?? '').match(/\d{4}/)?.[0] ?? '----';
+  const number = String(PROJECTS.indexOf(project) + 1).padStart(3, '0');
+  document.getElementById('tag-file').textContent = `WD/${year}/${number}`;
   document.getElementById('tag-name').textContent = project.name;
   document.getElementById('tag-brief').textContent = project.brief;
-  document.getElementById('tag-fields').replaceChildren(...Object.entries(project.fields ?? {}).flatMap(([k, v]) => {
-    const dt = document.createElement('dt'); dt.textContent = `${k}:`;
+  const rows = { ...(project.filed && { Filed: project.filed }), ...project.fields };
+  document.getElementById('tag-fields').replaceChildren(...Object.entries(rows).flatMap(([k, v]) => {
+    const dt = document.createElement('dt'); dt.textContent = k;
     const dd = document.createElement('dd'); dd.textContent = v;
     return [dt, dd];
   }));
-  const visit = document.getElementById('tag-visit');
-  visit.hidden = !project.link;
-  document.getElementById('tag-novisit').hidden = !!project.link;
-  if (project.link) visit.href = project.link;
+
+  const live = webLink(project.live);
+  const stamp = document.getElementById('tag-stamp');
+  stamp.textContent = project.stamp ?? (live ? 'Released' : 'Awaiting release');
+  stamp.classList.toggle('is-pending', !live);
+  for (const [id, url] of [['tag-visit', live], ['tag-code', webLink(project.code)]]) {
+    const a = document.getElementById(id);
+    a.hidden = !url;
+    if (url) a.href = url;
+    else a.removeAttribute('href');
+  }
   dialog.showModal();
 }
 
