@@ -174,11 +174,14 @@ const RIDGES = [
 
 /**
  * @param view     the camera (see computeView in main.js)
- * @param layout   { ground, moundX, terrain(x) -> surface y }
+ * @param layout   { ground, moundX, terrain(x) -> surface y, clouds }, where each
+ *                 cloud is { sprite, x, y, depth }: a picture painted at the same
+ *                 scale, its top-left corner, and how fast it slides past. They
+ *                 sit in the sky, behind the garbage ridges.
  * @returns drawBack / drawLip, each taking the canvas context, the camera's
  *          world x and a whole-pixel shake offset.
  */
-export function makeScenery(view, { ground, terrain, moundX }) {
+export function makeScenery(view, { ground, terrain, moundX, clouds = [] }) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const s = view.scale * dpr;
   const tileW = TILE_PX / s;
@@ -364,6 +367,11 @@ export function makeScenery(view, { ground, terrain, moundX }) {
       painted = 0;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(sky, ox - PAD, oy - PAD);
+      for (const c of clouds) {
+        const x = Math.round((c.x + view.offX - camX * c.depth) * s) + ox;
+        if (x > screenW || x + c.sprite.canvas.width < 0) continue;
+        ctx.drawImage(c.sprite.canvas, x, Math.round((c.y - view.offY) * s) + oy);
+      }
       for (const layer of layers) drawLayer(ctx, layer, camX, ox, oy);
       drawLayer(ctx, dirtLayer, camX, ox, oy);
       const mx = Math.round((mound.x + view.offX - camX) * s) + ox;

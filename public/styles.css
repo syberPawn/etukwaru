@@ -198,27 +198,64 @@ html, body {
 #mute:hover { background: rgba(70, 52, 26, .9); }
 #mute:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
-/* Hidden until reached by keyboard, so the scene stays one button. */
-#sorted {
+/*
+ * The text version: everything the scene shows, as plain headings, text and
+ * links, for screen readers and search engines. Out of sight until it is
+ * reached by keyboard, then it opens as a scrolling panel.
+ */
+.skip-link {
   position: fixed;
   left: 12px;
   top: 12px;
-  padding: 12px 16px;
+  z-index: 10;
+  padding: 10px 14px;
   background: var(--card);
-  border: 2px solid var(--card-edge);
+  color: var(--ink);
+  font: 700 14px/1 "Courier New", monospace;
   transform: translateY(calc(-100% - 24px));
-  transition: transform .15s ease;
 }
 
-#sorted:focus-within { transform: none; }
-#sorted h2 { margin: 0 0 6px; font-size: 14px; }
-#sorted ul { margin: 0; padding: 0; list-style: none; }
+.skip-link:focus { transform: none; outline: 3px solid #fff; outline-offset: 2px; }
 
-#sorted button {
+#text:not(:focus):not(:focus-within) {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+#text {
+  position: fixed;
+  inset: 12px;
+  z-index: 9;
+  overflow-y: auto;
+  padding: 20px clamp(16px, 4vw, 40px);
+  background: var(--card);
+  color: var(--ink);
+  font: 400 16px/1.55 Georgia, "Times New Roman", serif;
+  outline: 3px solid #fff;
+}
+
+#text h1 { margin: 0; font-size: 28px; }
+#text h2 { margin: 28px 0 6px; font-size: 21px; }
+#text p { margin: 0 0 10px; max-width: 70ch; }
+#text .text-lede { font-style: italic; }
+#text dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0 0 10px; font-size: 14px; }
+#text dt { font-weight: 700; }
+#text dd { margin: 0; }
+#text a { color: var(--ink); }
+#text .text-links { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 6px; padding: 0; list-style: none; }
+
+#text button {
   appearance: none;
   border: 0;
   background: none;
-  padding: 3px 0;
+  padding: 0;
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
@@ -399,6 +436,24 @@ html, body {
   font: 700 clamp(14px, 3.6vw, 16px)/1.6 "Courier New", Courier, monospace;
 }
 
+#tag-brief p { margin: 0 0 12px; }
+#tag-brief p:last-child { margin-bottom: 0; }
+
+button.paper-btn { cursor: pointer; }
+
+/* Read by screen readers, not shown. */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 #tag-fields {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -430,6 +485,21 @@ html, body {
   #tag-fields { grid-template-columns: 1fr; gap: 2px; }
   #tag-fields dd { margin-bottom: 8px; }
 }
+
+.paper-actions:empty { display: none; }
+
+#tag-brief a,
+#tag-fields dd a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+#tag-brief a:hover,
+#tag-fields dd a:hover { color: var(--stamp-red); }
+#tag-brief a:focus-visible,
+#tag-fields dd a:focus-visible { outline: 2px solid var(--stamp-red); outline-offset: 2px; }
 
 .paper-actions {
   display: flex;
@@ -512,3 +582,16 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   #tag[open] { animation: none; }
 }
+
+/* The 404 page */
+body.not-found {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #d8cdb4;
+  font: 400 18px/1.5 Georgia, "Times New Roman", serif;
+  text-align: center;
+}
+
+.not-found h1 { margin: 0 0 8px; font: 400 clamp(36px, 8vw, 64px)/1 Impact, "Arial Black", sans-serif; letter-spacing: .04em; color: var(--hazard); }
+.not-found a { color: var(--hazard); }

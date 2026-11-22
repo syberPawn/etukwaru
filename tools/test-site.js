@@ -67,13 +67,62 @@ async function desktop(browser, port) {
   await wait(900);
   check('holding an arrow drives the truck', await page.evaluate(() => __dump.dx) < start - 10);
 
+  // Out on the road: no billboard media is fetched until a board comes near.
+  const road = await page.evaluate(() => __dump.road());
+  const fetched = () => page.evaluate(() => performance.getEntriesByType('resource').filter(r => r.name.includes('/boards/')).map(r => r.name.split('/').pop()));
+  check('billboard media loads only as boards come near', (await fetched()).length <= 2, (await fetched()).join(', '));
   await page.keyboard.down('ArrowLeft');
-  await wait(4000);
+  await page.waitForFunction(d => -__dump.camX >= d, { timeout: 60000, polling: 50 }, road.boards[1].D);
   await page.keyboard.up('ArrowLeft');
   await wait(1500);
   const far = await page.evaluate(() => ({ dx: __dump.dx, cam: __dump.camX }));
-  check('the road carries on past the screen edge, camera following', far.dx < -1000 && Math.abs(far.cam - far.dx) < 5,
+  check('the road carries on past the screen edge, camera following', far.dx < -300 && Math.abs(far.cam - far.dx) < 5,
     `truck ${Math.round(far.dx)}, camera ${Math.round(far.cam)}`);
+  const board = (await page.evaluate(() => __dump.boards())).find(b => b.id === 'traffic-vision');
+  const boardAt = await page.evaluate((x, y) => __dump.toScreen(x, y), board.x + board.w / 2, board.y + board.h * .3);
+  await page.mouse.click(boardAt.x, boardAt.y);
+  await wait(350);
+  check('clicking a billboard opens its record',
+    await page.$eval('#tag', e => e.open) && await page.$eval('#tag-name', e => e.textContent) === 'TrafficVision');
+  check('its record lists the team', await page.$eval('#tag-fields', e => e.textContent.includes('Deep Das')));
+  await page.keyboard.press('Escape');
+  await wait(150);
+
+  // On to the end of the road.
+  await page.keyboard.down('ArrowLeft');
+  await page.waitForFunction(() => __dump.dx <= __dump.limits().min + 1, { timeout: 90000, polling: 100 });
+  await wait(600);
+  await page.keyboard.up('ArrowLeft');
+  const end = await page.evaluate(() => ({ dx: __dump.dx, min: __dump.limits().min, boards: __dump.boards() }));
+  check('the truck stops at the road block', Math.abs(end.dx - end.min) < 1 && end.min === -road.end);
+  check('the contact board is in view at the end', end.boards.find(b => b.id === 'contact')?.onScreen);
+  const played = await page.evaluate(() => performance.getEntriesByType('resource').some(r => r.name.endsWith('.mp4')));
+  check('billboard videos load on the way', played);
+
+  // Billboards stand still on the ground and never overlap.
+  const before = await page.evaluate(() => __dump.boards().map(b => ({ id: b.id, x: b.x, w: b.w })));
+  await page.keyboard.down('ArrowRight');
+  await wait(800);
+  await page.keyboard.up('ArrowRight');
+  await wait(800);
+  const after = await page.evaluate(() => __dump.boards().map(b => ({ id: b.id, x: b.x })));
+  check('billboards stay put as the truck drives', before.every((b, i) => Math.abs(b.x - after[i].x) < .01));
+  const spans = before.map(b => [b.x, b.x + b.w]).sort((a, b) => a[0] - b[0]);
+  check('no billboards overlap', spans.every((s, i) => i === 0 || s[0] > spans[i - 1][1]));
+
+  // The text version and structured data, for screen readers and search engines.
+  const text = await page.evaluate(() => ({
+    h1: document.querySelector('h1')?.textContent,
+    sections: document.querySelectorAll('#text-entries section').length,
+    ld: (() => { try { return JSON.parse(document.querySelector('script[type="application/ld+json"]').textContent)['@graph'][0].name; } catch { return null; } })(),
+  }));
+  check('the text version lists every entry under one heading', text.h1 === 'Sangamlung Gangmei' && text.sections === end.boards.length, `${text.sections} sections`);
+  check('structured data names the person', text.ld === 'Sangamlung Gangmei');
+  await page.evaluate(() => [...document.querySelectorAll('#text button')].find(b => b.closest('section').querySelector('h2').textContent === 'This space is available').click());
+  await wait(300);
+  check('the contact record has a copy-email button', await page.$$eval('#tag-links button', bs => bs.some(b => b.textContent === 'Copy email')));
+  await page.keyboard.press('Escape');
+  await wait(150);
 
   // A hidden tab has to go quiet, and come back when it's visible again.
   const setHidden = value => page.evaluate(v => {

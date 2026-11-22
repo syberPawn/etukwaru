@@ -1,7 +1,11 @@
 import RAPIER from '../vendor/rapier.mjs';
-import { PROJECTS } from './projects.js';
+import { PROJECTS, NOTICES } from './projects.js';
 import { mulberry, loadProjectImages, makeProjectSprite, makeFillerSprites } from './junk.js';
 import { makeScenery, paintGrade } from './scene.js';
+import {
+  planRoad, planSkyClouds, paintCumulus, paintRoadBlock, paintBillboard, paintBoardFace,
+  BLOCK_W, BLOCK_LAMPS, BOARD_W, BOARD_TOP_H, boardScale,
+} from './road.js';
 import {
   initSound, setMuted, soundState, pauseSound, engineStart, engineThrottle, engineStop,
   hydraulics, reverseBeeps, thud,
@@ -12,6 +16,9 @@ import {
 } from './truck.js';
 
 /* ---------- Constants ---------- */
+
+// Each has a billboard, in this order along the road, and rides in the truck.
+const BOARD_ENTRIES = [...PROJECTS, ...NOTICES];
 
 const M = 100;                // world units per physics metre
 const GROUND = 800;           // world y of the ground line
@@ -61,7 +68,10 @@ const onScreen = () => ({ left: camX - view.offX, right: camX + view.W + view.of
 /* ---------- State ---------- */
 
 let view, world, parts, projectImages, scenery, grade;
-let items = [], truckBody, bedBody, gateCollider, rightWall;
+let items = [], truckBody, bedBody, gateCollider, rightWall, blockWall;
+let road, roadBlock;
+let boards = [], hoverBoard = null;
+let boardSize = 1;      // small screens get bigger boards, so they stay readable
 let truckX, truckDX = 0, travel, moundX, hinge;
 let camX = 0;   // how far the camera has followed the truck, never right of the dump
 let cycleFrom = 0, cycleTravel = 0;
@@ -128,6 +138,16 @@ function buildStatics() {
   // An invisible wall at the right edge, past the dump. The left is open road.
   rightWall = world.createCollider(RAPIER.ColliderDesc.cuboid(.5, 40));
   placeSideWall();
+  // The road block at the far end of the road.
+  blockWall = world.createCollider(RAPIER.ColliderDesc.cuboid(2, 40));
+  placeRoadBlock();
+}
+
+/** World x of the road block's nearest cone, where the truck has to stop. */
+const blockRight = () => truckX - road.end - NOSE - EDGE_GAP;
+
+function placeRoadBlock() {
+  blockWall.setTranslation({ x: blockRight() / M - 2, y: 0 });
 }
 
 function placeSideWall() {
@@ -155,7 +175,7 @@ function spawnLoad() {
   items = [];
   const rng = mulberry(1701);
   const filler = makeFillerSprites(rng);
-  const projects = PROJECTS.map(project => ({ sprite: makeProjectSprite(project, rng, projectImages.get(project)), project }));
+  const projects = BOARD_ENTRIES.map(project => ({ sprite: makeProjectSprite(project, rng, projectImages.get(project)), project }));
 
   for (let i = filler.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -229,7 +249,8 @@ function buildWorld() {
     x: truckX + (NATIVE.hinge.x - NATIVE.centerX) * SCALE,
     y: GROUND + (NATIVE.hinge.y - NATIVE.groundY) * SCALE,
   };
-  phase = 'idle'; phaseT = 0; tilt = 0; held = null; press = null; hover = null;
+  phase = 'idle'; phaseT = 0; tilt = 0; held = null; press = null; hover = null; hoverBoard = null;
+  road = planRoad(view, BOARD_ENTRIES.length);
   dust.length = 0;
   buildStatics();
   buildBed();
@@ -370,7 +391,7 @@ const TAIL = (NATIVE.hinge.x + 153 - NATIVE.centerX) * SCALE;   // closed tailga
 
 function driveLimits() {
   return {
-    min: -Infinity,
+    min: -road.end,
     max: view.W + view.offX - EDGE_GAP - TAIL - truckX,
   };
 }
@@ -424,7 +445,11 @@ function updateDrive(dt) {
 
 /** Follows the truck once it leaves the dump, looking ahead the way it's going. */
 function updateCamera(dt) {
-  const target = Math.min(0, truckDX + driveV * LOOK_AHEAD);
+  let target = Math.min(0, truckDX + driveV * LOOK_AHEAD);
+  // Near the end, look far enough ahead to show the whole road block.
+  const showBlock = blockRight() - BLOCK_W - 50 + view.offX;
+  const short = target - showBlock;
+  if (short > 0) target -= short * clamp(1 - (short - 500) / 600, 0, 1);
   camX += (target - camX) * (1 - Math.exp(-dt * 4));
   if (Math.abs(target - camX) < .05) camX = target;
 }
@@ -527,7 +552,7 @@ function stepSim() {
     const t = body.translation();
     const target = toWorld(pointer.x, pointer.y);
     const { left, right } = onScreen();
-    const tx = clamp(target.x + held.dx, left + 20, right - 20) / M;
+    const tx = clamp(target.x + held.dx, Math.max(left, blockRight()) + 20, right - 20) / M;
     const ty = clamp(target.y + held.dy, view.offY + 10, GROUND - 10) / M;
     let vx = (tx - t.x) * 26, vy = (ty - t.y) * 26;
     const speed = Math.hypot(vx, vy);
@@ -633,6 +658,175 @@ function drawItem(it) {
   drawSprite(it.sprite, it.sprite.canvas, p.x, p.y, a);
 }
 
+/* ---------- Billboards and the road block ---------- */
+
+/** Where each billboard is this frame, in world units. */
+function poseBoards() {
+  const { left, right } = onScreen();
+  for (const b of boards) {
+    const k = b.size * boardSize;                    // world units per unit of its picture
+    const w = b.art.w * k, h = b.art.h * k;
+    const x = b.worldX - w / 2;
+    b.pose = {
+      x, y: b.groundY - h, w, h, k,
+      onScreen: x + w > left && x < right,
+      near: x + w > left - view.visW * .5 && x < right + view.visW * .5,
+    };
+  }
+}
+
+/**
+ * Pictures and videos load only as their board comes near, so the page
+ * itself stays light. Videos play only while their board is on screen.
+ */
+function updateBoardMedia() {
+  for (const b of boards) {
+    const { near, onScreen: visible } = b.pose;
+    const src = b.entry.board;
+    if (near && src.image && !b.media.image) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = src.image;
+      b.media.image = img;
+    }
+    if (!src.video || reduceMotion) continue;
+    if (near && !b.media.video) {
+      const v = document.createElement('video');
+      v.muted = true;
+      v.defaultMuted = true;
+      v.loop = true;
+      v.playsInline = true;
+      v.preload = 'auto';
+      v.src = src.video;
+      b.media.video = v;
+    }
+    const v = b.media.video;
+    if (!v) continue;
+    if (visible && !document.hidden && v.paused) v.play().catch(() => {});
+    else if ((!visible || document.hidden) && !v.paused) v.pause();
+  }
+}
+
+/** What shows on a board right now: its video, its picture, or its painted face. */
+function boardFace(b) {
+  const { video, image, painted } = b.media;
+  if (video && !video.paused && video.readyState >= 2) return video;
+  if (image?.complete && image.naturalWidth) return image;
+  return painted ?? null;
+}
+
+function drawBoards(t) {
+  for (const b of boards) {
+    if (!b.pose.onScreen) continue;
+    const { x, y, w, h, k } = b.pose;
+    ctx.save();
+    // Old boards lean a touch, pivoting on their feet.
+    ctx.translate(x + w / 2, y + h);
+    ctx.rotate(b.lean);
+    ctx.translate(-(x + w / 2), -(y + h));
+
+    const sc = b.art.screen;
+    const sx = x + sc.x * k, sy = y + sc.y * k, sw = sc.w * k, sh = sc.h * k;
+    ctx.drawImage(b.art.canvas, x, y, w, h);
+    const face = boardFace(b);
+    const live = face?.tagName === 'VIDEO';
+    if (live) {
+      // A lit screen: it glows out over its frame and lights the dirt below.
+      const px = k * view.scale * (canvas.width / view.vw);   // device pixels per unit
+      const spill = ctx.createRadialGradient(sx + sw / 2, b.groundY, 0, sx + sw / 2, b.groundY, sw * .7);
+      spill.addColorStop(0, 'rgba(215,240,225,.16)');
+      spill.addColorStop(1, 'rgba(215,240,225,0)');
+      ctx.fillStyle = spill;
+      ctx.fillRect(sx - sw * .2, b.groundY - sw * .7, sw * 1.4, sw * .9);
+      ctx.save();
+      ctx.shadowColor = 'rgba(225,245,235,.7)';
+      ctx.shadowBlur = 34 * px;
+      ctx.fillStyle = '#0d0f0e';
+      ctx.fillRect(sx, sy, sw, sh);
+      ctx.restore();
+      ctx.drawImage(face, sx, sy, sw, sh);
+    } else {
+      if (face) ctx.drawImage(face.canvas ?? face, sx, sy, sw, sh);
+      else {
+        ctx.fillStyle = '#1d1b17';
+        ctx.fillRect(sx, sy, sw, sh);
+      }
+      // Printed and out in the weather, so a touch duller than a screen.
+      ctx.fillStyle = 'rgba(70,58,40,.14)';
+      ctx.fillRect(sx, sy, sw, sh);
+    }
+
+    // Lamp light washing down the face. Pointed at, every lamp comes on full.
+    const hovered = b === hoverBoard;
+    b.art.lamps.forEach((l, i) => {
+      const state = b.lampStates[i];
+      // A lit screen needs no floodlights.
+      let on = hovered ? 1 : live || state === 'off' ? 0 : .55;
+      if (state === 'flicker' && !hovered && !reduceMotion) {
+        on *= Math.sin(t * 23 + i) > -.35 && Math.sin(t * 3.1 + i * 2) > -.8 ? 1 : .15;
+      }
+      const lx = x + l.x * k, ly = y + l.y * k;
+      if (on > 0) {
+        const pool = ctx.createRadialGradient(lx, ly, 0, lx, ly + sh * .25, sh * .75);
+        pool.addColorStop(0, `rgba(255,226,160,${.42 * on})`);
+        pool.addColorStop(1, 'rgba(255,226,160,0)');
+        ctx.fillStyle = pool;
+        ctx.fillRect(lx - sh * .75, ly, sh * 1.5, sh * 1.05);
+      }
+      // the lens itself
+      ctx.fillStyle = on > .3 ? `rgba(255,236,190,${.5 + on * .5})` : '#5a564d';
+      ctx.fillRect(lx - 10 * k, ly - 1.5 * k, 20 * k, 3 * k);
+    });
+
+    // Boards set back from the road sit further into the haze.
+    if (b.back) {
+      ctx.fillStyle = 'rgba(150,141,118,.26)';
+      ctx.fillRect(x, y, w, h);
+    }
+    ctx.restore();
+  }
+}
+
+/** The billboard under a screen point, nearest first. */
+function boardAt(px, py, pad) {
+  const p = toWorld(px, py);
+  for (let i = boards.length - 1; i >= 0; i--) {
+    const b = boards[i];
+    if (!b.pose?.onScreen) continue;
+    const { x, y, k } = b.pose;
+    const x0 = x + 10 * k - pad, x1 = x + (10 + BOARD_W) * k + pad;
+    const y0 = y + 30 * k - pad, y1 = y + (BOARD_TOP_H - 10) * k + pad;
+    if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) return b;
+  }
+  return null;
+}
+
+function drawRoadBlock(t) {
+  const x0 = blockRight() - BLOCK_W;
+  const { left, right } = onScreen();
+  if (x0 > right || x0 + BLOCK_W < left) return;
+  const y0 = GROUND + 2 - roadBlock.h;
+  ctx.drawImage(roadBlock.canvas, x0, y0, roadBlock.w, roadBlock.h);
+  // Warning lamps, blinking in turn
+  BLOCK_LAMPS.forEach(([lx, ly], i) => {
+    const on = reduceMotion || Math.floor(t * 1.6 + i) % 2 === 0;
+    const x = x0 + lx, y = GROUND - ly;
+    ctx.fillStyle = '#2a2622';
+    ctx.fillRect(x - 6, y + 4, 12, 10);
+    ctx.fillStyle = on ? '#ffb72e' : '#6b4a1a';
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    if (on) {
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, 46);
+      glow.addColorStop(0, 'rgba(255,190,60,.55)');
+      glow.addColorStop(1, 'rgba(255,190,60,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - 46, y - 46, 92, 92);
+    }
+  });
+}
+
 function drawLabel(it) {
   const p = worldPos(it);
   const text = it.project.name;
@@ -686,6 +880,10 @@ function render(now) {
   worldSpace();
 
   drawCrows(t);
+  poseBoards();
+  updateBoardMedia();
+  drawBoards(t);
+  drawRoadBlock(t);
 
   const truckAt = truckX + truckDX;
   const driving = phase === 'reverse' || phase === 'pour' || driveV !== 0;
@@ -783,21 +981,25 @@ function dropHeld() {
 function onPointerDown(e) {
   if (e.button !== 0 || held || press || !pickable()) return;
   pointer = { x: e.clientX, y: e.clientY };
-  const it = itemAt(e.clientX, e.clientY, e.pointerType === 'touch' ? 14 : 3);
-  if (!it) return;
-  press = { item: it, x: e.clientX, y: e.clientY, id: e.pointerId };
+  const pad = e.pointerType === 'touch' ? 14 : 3;
+  const it = itemAt(e.clientX, e.clientY, pad);
+  const board = it ? null : boardAt(e.clientX, e.clientY, pad);
+  if (!it && !board) return;
+  press = { item: it, board, x: e.clientX, y: e.clientY, id: e.pointerId };
   canvas.setPointerCapture(e.pointerId);
 }
 
 function onPointerMove(e) {
   pointer = { x: e.clientX, y: e.clientY };
   if (press && e.pointerId === press.id && !held) {
+    if (press.board) return;
     if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > DRAG_THRESHOLD) beginHold(press.item);
     return;
   }
   if (!held && e.pointerType !== 'touch') {
     hover = pickable() ? itemAt(e.clientX, e.clientY, 3) : null;
-    canvas.style.cursor = hover ? 'grab' : '';
+    hoverBoard = pickable() && !hover ? boardAt(e.clientX, e.clientY, 3) : null;
+    canvas.style.cursor = hover ? 'grab' : hoverBoard ? 'pointer' : '';
   }
 }
 
@@ -805,6 +1007,8 @@ function onPointerUp(e) {
   if (!press || e.pointerId !== press.id) return;
   if (held) {
     dropHeld();
+  } else if (press.board) {
+    if (e.type === 'pointerup' && boardAt(e.clientX, e.clientY, 20) === press.board) openTag(press.board.entry);
   } else if (e.type === 'pointerup' && press.item.project) {
     openTag(press.item.project);
   } else if (e.type === 'pointerup') {
@@ -815,44 +1019,147 @@ function onPointerUp(e) {
   press = null;
 }
 
-// Only plain web addresses become buttons.
-const webLink = url => (typeof url === 'string' && /^https?:\/\//i.test(url) ? url : null);
+// Only web and email addresses become links.
+const webLink = url => (typeof url === 'string' && /^(https?:\/\/|mailto:)/i.test(url) ? url : null);
+
+function makeLink(url, text, className) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.textContent = text;
+  if (className) a.className = className;
+  if (!url.startsWith('mailto:')) {
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  }
+  return a;
+}
+
+/** A brief is one paragraph or a list of them. */
+const paragraphs = brief => (Array.isArray(brief) ? brief : [brief]);
+
+/** Fills a node with text and links: a string, { text, url }, or a list of both. */
+function fillRich(node, content) {
+  for (const part of [content].flat()) {
+    if (typeof part === 'string') node.append(part);
+    else if (part && webLink(part.url)) node.append(makeLink(part.url, part.text));
+    else if (part?.text) node.append(part.text);
+  }
+  return node;
+}
+
+/**
+ * A button that copies text, for when a mail link has no mail app to open.
+ * It says so when it's done, and shows the text itself if copying isn't allowed.
+ */
+function copyButton(label, text, className) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = className;
+  b.textContent = label;
+  const status = document.getElementById('tag-status');
+  b.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      b.textContent = 'Copied';
+      status.textContent = `${text} copied`;
+    } catch {
+      b.textContent = text;
+      status.textContent = text;
+    }
+    setTimeout(() => { b.textContent = label; }, 2200);
+  });
+  return b;
+}
 
 function openTag(project) {
-  const year = String(project.filed ?? '').match(/\d{4}/)?.[0] ?? '----';
-  const number = String(PROJECTS.indexOf(project) + 1).padStart(3, '0');
-  document.getElementById('tag-file').textContent = `WD/${year}/${number}`;
+  // Projects get a salvage record with a number; everything else a notice.
+  document.getElementById('tag-form').textContent = project.form ?? 'Salvage record · Form WD-27';
+  document.getElementById('tag-number').hidden = !project.number;
+  document.getElementById('tag-file').textContent = project.number ?? '';
   document.getElementById('tag-name').textContent = project.name;
-  document.getElementById('tag-brief').textContent = project.brief;
+  document.getElementById('tag-brief').replaceChildren(...paragraphs(project.brief).map(para => fillRich(document.createElement('p'), para)));
   const rows = { ...(project.filed && { Filed: project.filed }), ...project.fields };
   document.getElementById('tag-fields').replaceChildren(...Object.entries(rows).flatMap(([k, v]) => {
     const dt = document.createElement('dt'); dt.textContent = k;
-    const dd = document.createElement('dd'); dd.textContent = v;
+    const dd = fillRich(document.createElement('dd'), v);
     return [dt, dd];
   }));
-
-  const live = webLink(project.live);
-  const stamp = document.getElementById('tag-stamp');
-  stamp.textContent = project.stamp ?? (live ? 'Released' : 'Awaiting release');
-  stamp.classList.toggle('is-pending', !live);
-  for (const [id, url] of [['tag-visit', live], ['tag-code', webLink(project.code)]]) {
-    const a = document.getElementById(id);
-    a.hidden = !url;
-    if (url) a.href = url;
-    else a.removeAttribute('href');
+  if (project.team?.length) {
+    const dt = document.createElement('dt'); dt.textContent = 'Team';
+    const dd = document.createElement('dd');
+    project.team.forEach((m, i) => {
+      if (i) dd.append(', ');
+      const url = webLink(m.linkedin);
+      dd.append(url ? makeLink(url, m.name) : m.name);
+    });
+    document.getElementById('tag-fields').append(dt, dd);
   }
+
+  const links = (project.links ?? []).filter(l => l.copy || webLink(l.url));
+  document.getElementById('tag-links').replaceChildren(...links.map((l, i) => {
+    const className = i ? 'paper-btn' : 'paper-btn is-main';
+    if (l.copy) return copyButton(l.label, l.copy, className);
+    const a = makeLink(l.url, l.label, className);
+    if (!l.url.startsWith('mailto:')) {
+      const arrow = document.createElement('span');
+      arrow.setAttribute('aria-hidden', 'true');
+      arrow.textContent = ' ↗';
+      a.append(arrow);
+    }
+    return a;
+  }));
+
+  const released = links.some(l => l.url && /^visit/i.test(l.label));
+  const stamp = document.getElementById('tag-stamp');
+  stamp.textContent = project.stamp ?? (released ? 'Released' : 'Awaiting release');
+  stamp.classList.toggle('is-pending', !released && !project.stamp);
   dialog.showModal();
 }
 
-function buildSortedPile() {
-  document.getElementById('sorted-list').replaceChildren(...PROJECTS.map(p => {
-    const li = document.createElement('li');
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = p.name;
-    b.addEventListener('click', () => openTag(p));
-    li.append(b);
-    return li;
+/**
+ * The text version of the page, from the same entries as the billboards:
+ * headings, text, details and links, plus a button to open each record.
+ */
+function buildTextVersion() {
+  const el = (tag, text, className) => {
+    const node = document.createElement(tag);
+    if (text) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  };
+  // About first: it introduces the rest.
+  const about = BOARD_ENTRIES.find(e => e.id === 'about');
+  const order = [about, ...BOARD_ENTRIES.filter(e => e !== about)].filter(Boolean);
+  document.getElementById('text-entries').replaceChildren(...order.map(entry => {
+    const section = el('section');
+    section.setAttribute('aria-labelledby', `text-${entry.id}`);
+    const h2 = el('h2', entry === about ? 'About' : entry.name);
+    h2.id = `text-${entry.id}`;
+    section.append(h2, ...paragraphs(entry.brief).map(para => fillRich(el('p'), para)));
+    const rows = { ...(entry.filed && { Filed: entry.filed }), ...entry.fields };
+    if (entry.team?.length) {
+      rows.Team = entry.team.flatMap((m, i) => [...(i ? [', '] : []), m.linkedin ? { text: m.name, url: m.linkedin } : m.name]);
+    }
+    if (Object.keys(rows).length) {
+      const dl = el('dl');
+      for (const [k, v] of Object.entries(rows)) dl.append(el('dt', k), fillRich(el('dd'), v));
+      section.append(dl);
+    }
+    const ul = el('ul', null, 'text-links');
+    for (const l of entry.links ?? []) {
+      if (!webLink(l.url)) continue;
+      const li = el('li');
+      li.append(makeLink(l.url, l.label));
+      ul.append(li);
+    }
+    const li = el('li');
+    const open = el('button', 'Open the record');
+    open.type = 'button';
+    open.addEventListener('click', () => openTag(entry));
+    li.append(open);
+    ul.append(li);
+    section.append(ul);
+    return section;
   }));
 }
 
@@ -872,11 +1179,59 @@ function placeControls() {
   controls.style.top = `${groundPx + (view.vh - groundPx) * .5}px`;
 }
 
+/** Runs a small job when the browser has a spare moment. */
+const whenIdle = job => (window.requestIdleCallback ? requestIdleCallback(job, { timeout: 1500 }) : setTimeout(job, 60));
+let repaintToken = 0;
+
 function repaint() {
   const dpr = Math.min(devicePixelRatio || 1, 2);
   canvas.width = Math.round(view.vw * dpr);
   canvas.height = Math.round(view.vh * dpr);
-  scenery = makeScenery(view, { ground: GROUND, terrain: terrainY, moundX });
+  // Pictures are painted at the size they are shown.
+  const s = view.scale * Math.min(devicePixelRatio || 1, 2);
+  roadBlock = paintRoadBlock(s);
+  hoverBoard = null;
+  for (const b of boards) b.media.video?.pause();
+  boardSize = boardScale(view);
+  // Legs short enough that the whole board fits under the top of the screen.
+  const room = GROUND - view.offY - 24;
+  const S = view.visW;
+  boards = road.boards.map((p, i) => {
+    const entry = BOARD_ENTRIES[i];
+    const k = p.size * boardSize;
+    const legs = clamp(300 + p.lift * 120, 110, room / k - BOARD_TOP_H);
+    const old = boards.find(b => b.entry === entry);
+    const face = entry.board.face;
+    return {
+      entry, back: p.back, size: p.size, lean: p.lean,
+      // Most lamps work. One in a while flickers, and the odd one is dead.
+      lampStates: [0, 1, 2].map(j => {
+        const r = mulberry(p.seed + j)();
+        return r < .12 ? 'off' : r < .3 ? 'flicker' : 'on';
+      }),
+      worldX: .55 * S - view.offX - p.D,
+      groundY: p.back ? GROUND - 30 : GROUND - 4,
+      art: paintBillboard(entry.board.caption ?? entry.name, legs, p.seed, s * k, p.mono),
+      media: {
+        image: old?.media.image, video: old?.media.video,
+        painted: face ? paintBoardFace(face, entry.board, s * k) : null,
+      },
+    };
+  }).sort((a, b) => b.back - a.back);   // set-back boards drawn first, behind
+
+  // Background clouds are painted pixel by pixel, which is slow, so they are
+  // painted one at a time in idle moments after the scene is already up.
+  const clouds = [];
+  const token = ++repaintToken;
+  const pending = planSkyClouds(view, road.end, view.offY + 20, GROUND - 230);
+  const paintNext = () => {
+    if (token !== repaintToken || !pending.length) return;
+    const c = pending.shift();
+    clouds.push({ ...c, sprite: paintCumulus(c.seed, c.w, c.w * .5, s) });
+    whenIdle(paintNext);
+  };
+  whenIdle(paintNext);
+  scenery = makeScenery(view, { ground: GROUND, terrain: terrainY, moundX, clouds });
   grade = paintGrade(view);
   placeControls();
 }
@@ -897,7 +1252,12 @@ function onResize() {
       makeCrows();
     } else {
       placeSideWall();
-      if (phase === 'idle') placeTruck(Math.min(truckDX, driveLimits().max));
+      road = planRoad(view, BOARD_ENTRIES.length);
+      placeRoadBlock();
+      if (phase === 'idle') {
+        const { min, max } = driveLimits();
+        placeTruck(clamp(truckDX, min, max));
+      }
       const maxX = (view.W + view.offX - 30) / M;
       for (const it of items) {
         const t = it.body.translation();
@@ -948,13 +1308,13 @@ function frame(now) {
 async function boot() {
   await RAPIER.init();
   parts = await loadTruckImages();
-  projectImages = await loadProjectImages(PROJECTS);
+  projectImages = await loadProjectImages(BOARD_ENTRIES);
   puff = makePuff();
   view = computeView();
   buildWorld();
   makeCrows();
   repaint();
-  buildSortedPile();
+  buildTextVersion();
 
   const muteBtn = document.getElementById('mute');
   const applyMute = value => {
@@ -977,7 +1337,10 @@ async function boot() {
   canvas.addEventListener('pointercancel', onPointerUp);
   addEventListener('resize', onResize);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) releaseControls();
+    if (document.hidden) {
+      releaseControls();
+      for (const b of boards) b.media.video?.pause();
+    }
     pauseSound(document.hidden);
   });
   document.getElementById('tag-close').addEventListener('click', () => dialog.close());
@@ -993,6 +1356,11 @@ async function boot() {
       items: () => items.map(it => ({ ...worldPos(it), project: it.project?.name ?? null, w: it.sprite.w, h: it.sprite.h, inBed: itemInBed(it), sleeping: it.body.isSleeping() })),
       toScreen: (x, y) => ({ x: (x + view.offX - camX) * view.scale, y: (y - view.offY) * view.scale }),
       get camX() { return camX; },
+      road: () => ({ ...road, block: blockRight() }),
+      boards: () => boards.map(b => ({
+        id: b.entry.id, ...b.pose,
+        face: boardFace(b)?.tagName ?? (b.media.painted ? 'painted' : null),
+      })),
       hinge: () => hinge,
       get dx() { return truckDX; },
       get v() { return driveV; },

@@ -1,13 +1,16 @@
-// A small local server for public/, using the same headers as production.
+// A small local server for public/, using the same headers as production,
+// and compressing text the way the host does.
 //   npm run dev
 const http = require('http');
+const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png',
+  '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png', '.mp4': 'video/mp4',
+  '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.xml': 'application/xml', '.txt': 'text/plain; charset=utf-8',
 };
 
 function productionHeaders() {
@@ -41,8 +44,11 @@ function startServer(port = 0) {
           res.end('Not found');
           return;
         }
-        res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream', ...headers });
-        res.end(data);
+        const type = TYPES[path.extname(file)] || 'application/octet-stream';
+        const accepts = (req.headers['accept-encoding'] ?? '').split(',').map(e => e.trim().split(';')[0]);
+        const compress = accepts.includes('br') && /^text\/|javascript|json|xml|svg/.test(type);
+        res.writeHead(200, { 'content-type': type, ...headers, ...(compress && { 'content-encoding': 'br', vary: 'Accept-Encoding' }) });
+        res.end(compress ? zlib.brotliCompressSync(data) : data);
       });
     });
     server.once('error', reject);

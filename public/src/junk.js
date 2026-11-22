@@ -151,6 +151,161 @@ const PROJECT_ART = {
       g.fillStyle = '#7a4a1e'; g.fillRect(24, -6, w - 48, 8);
     },
   },
+  // A rider's helmet, for TrafficVision.
+  helmet: {
+    w: 100, h: 82, density: 1.1, bounce: .25, friction: .55,
+    shape(w, h) {
+      return hull([[-w / 2, h / 2], [w / 2, h / 2], [w / 2, -h / 2 + 34], [w / 2 - 22, -h / 2 + 4], [0, -h / 2], [-w / 2 + 24, -h / 2 + 6], [-w / 2, -h / 2 + 34]]);
+    },
+    draw(g, w, h) {
+      const shell = g.createLinearGradient(0, 0, 0, h);
+      shell.addColorStop(0, '#d8d2c4'); shell.addColorStop(1, '#8e887c');
+      g.fillStyle = shell;
+      g.beginPath();
+      g.moveTo(0, h); g.lineTo(0, 40);
+      g.bezierCurveTo(0, 6, 24, 0, w / 2, 0);
+      g.bezierCurveTo(w - 18, 0, w, 14, w, 40);
+      g.lineTo(w, h); g.closePath(); g.fill();
+      g.fillStyle = '#1d2228';                                   // visor
+      g.beginPath();
+      g.moveTo(w * .42, 30); g.lineTo(w - 4, 30); g.lineTo(w - 4, 58); g.lineTo(w * .48, 58);
+      g.closePath(); g.fill();
+      g.fillStyle = 'rgba(160,190,210,.35)';
+      g.fillRect(w * .55, 34, w * .3, 5);
+      g.fillStyle = '#b5302a';                                   // a racing stripe
+      g.fillRect(8, 16, w * .36, 6);
+      g.fillStyle = '#2a2723';
+      g.fillRect(0, h - 8, w, 8);
+    },
+  },
+  // A worn football, for Makaam Sports.
+  football: {
+    w: 76, h: 76, density: .45, bounce: .6, friction: .6,
+    shape: w => ({ type: 'ball', r: w / 2 }),
+    draw(g, w) {
+      const r = w / 2;
+      const ball = g.createRadialGradient(r * .75, r * .7, r * .1, r, r, r);
+      ball.addColorStop(0, '#f1ede2'); ball.addColorStop(1, '#a9a395');
+      g.fillStyle = ball;
+      g.beginPath(); g.arc(r, r, r, 0, 7); g.fill();
+      g.fillStyle = '#23201b';
+      const patch = (cx, cy, s) => {
+        g.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const a = -Math.PI / 2 + i * Math.PI * 2 / 5;
+          g.lineTo(cx + Math.cos(a) * s, cy + Math.sin(a) * s);
+        }
+        g.closePath(); g.fill();
+      };
+      patch(r, r, 13);
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + i * Math.PI * 2 / 5;
+        patch(r + Math.cos(a) * 31, r + Math.sin(a) * 31, 8);
+      }
+      g.save();
+      g.beginPath(); g.arc(r, r, r, 0, 7); g.clip();
+      g.strokeStyle = 'rgba(35,32,27,.5)'; g.lineWidth = 1.4;
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + i * Math.PI * 2 / 5;
+        g.beginPath(); g.moveTo(r + Math.cos(a) * 13, r + Math.sin(a) * 13); g.lineTo(r + Math.cos(a) * 31, r + Math.sin(a) * 31); g.stroke();
+      }
+      g.restore();
+    },
+  },
+  // A sealed invitation, for the event management software.
+  envelope: {
+    w: 112, h: 74, density: .6, bounce: .1, friction: .8,
+    shape: box,
+    draw(g, w, h) {
+      g.fillStyle = '#e6dcc3';
+      g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(90,70,40,.45)'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(0, h); g.lineTo(w * .42, h * .5); g.moveTo(w, h); g.lineTo(w * .58, h * .5); g.stroke();
+      g.fillStyle = '#d6cbb0';
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w / 2, h * .58); g.closePath(); g.fill();
+      g.stroke();
+      g.fillStyle = '#1f7a4c';                                   // the seal
+      g.beginPath(); g.arc(w / 2, h * .56, 12, 0, 7); g.fill();
+      g.fillStyle = '#e6dcc3';
+      g.font = '700 13px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('✓', w / 2, h * .57);
+    },
+  },
+  // An attendance register, for Dgtal Register.
+  register: {
+    w: 98, h: 80, density: 1.2, bounce: .1, friction: .75,
+    shape: box,
+    draw(g, w, h) {
+      g.fillStyle = '#efe8d6';                                   // page edges
+      g.fillRect(6, 4, w - 6, h - 4);
+      g.strokeStyle = 'rgba(120,110,90,.5)'; g.lineWidth = 1;
+      for (let y = 8; y < h - 2; y += 3) { g.beginPath(); g.moveTo(w - 6, y); g.lineTo(w, y); g.stroke(); }
+      g.fillStyle = '#2a59a8';                                   // cover
+      g.beginPath(); g.roundRect(0, 0, w - 8, h - 6, 4); g.fill();
+      g.fillStyle = '#1d3f7a';
+      g.fillRect(0, 0, 12, h - 6);
+      g.fillStyle = '#e8e2cf';
+      g.fillRect(24, 18, w - 44, 22);
+      g.fillStyle = '#2a2418';
+      g.font = '700 10px "Courier New", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('REGISTER', 24 + (w - 44) / 2, 29);
+      g.fillStyle = '#f2c94c';
+      g.fillRect(24, 50, 22, 4);
+    },
+  },
+  // A tin sign for Instagram.
+  instagram: {
+    w: 80, h: 80, density: 1.4, bounce: .2, friction: .6,
+    shape: box,
+    draw(g, w, h) {
+      const bg = g.createLinearGradient(0, h, w, 0);
+      bg.addColorStop(0, '#f2a64a'); bg.addColorStop(.4, '#e0533d'); bg.addColorStop(.75, '#c03477'); bg.addColorStop(1, '#6a3ab0');
+      g.fillStyle = bg;
+      g.beginPath(); g.roundRect(0, 0, w, h, 18); g.fill();
+      g.strokeStyle = '#fff'; g.lineWidth = 6;
+      g.beginPath(); g.roundRect(17, 17, w - 34, h - 34, 12); g.stroke();
+      g.beginPath(); g.arc(w / 2, h / 2, 11, 0, 7); g.stroke();
+      g.fillStyle = '#fff';
+      g.beginPath(); g.arc(w - 27, 27, 3.5, 0, 7); g.fill();
+    },
+  },
+  // A name badge, for About me.
+  badge: {
+    w: 104, h: 70, density: .5, bounce: .1, friction: .8,
+    shape: box,
+    draw(g, w, h) {
+      g.fillStyle = '#c3302a';
+      g.beginPath(); g.roundRect(0, 0, w, h, 8); g.fill();
+      g.fillStyle = '#f3efe4';
+      g.fillRect(5, 26, w - 10, h - 34);
+      g.fillStyle = '#fff';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '900 15px Impact, "Arial Black", sans-serif';
+      g.fillText('HELLO', w / 2, 10);
+      g.font = '700 7px Arial, sans-serif';
+      g.fillText('my name is', w / 2, 21);
+      g.fillStyle = '#1d2a5c';
+      g.font = '400 17px "Segoe Script", "Brush Script MT", cursive';
+      g.fillText('S.Gangmei', w / 2, 44, w - 16);
+    },
+  },
+  // A tin sign for LinkedIn.
+  linkedin: {
+    w: 80, h: 80, density: 1.4, bounce: .2, friction: .6,
+    shape: box,
+    draw(g, w, h) {
+      g.fillStyle = '#0a66c2';
+      g.beginPath(); g.roundRect(0, 0, w, h, 12); g.fill();
+      g.fillStyle = '#fff';
+      g.fillRect(16, 34, 11, 30);
+      g.beginPath(); g.arc(21.5, 22, 7, 0, 7); g.fill();
+      g.fillRect(34, 34, 11, 30);
+      g.beginPath();
+      g.moveTo(45, 44); g.quadraticCurveTo(48, 33, 57, 33); g.quadraticCurveTo(66, 33, 66, 46);
+      g.lineTo(66, 64); g.lineTo(55, 64); g.lineTo(55, 48); g.quadraticCurveTo(55, 43, 50, 43); g.quadraticCurveTo(45, 43, 45, 49);
+      g.closePath(); g.fill();
+    },
+  },
 };
 
 /* ---------- Filler garbage ---------- */
@@ -305,7 +460,7 @@ const FILLER = {
   },
 };
 
-const FILLER_COUNTS = { bag: 5, box: 4, crate: 2, tyre: 2, plank: 3, can: 8, bottle: 7, paper: 5, bucket: 2 };
+const FILLER_COUNTS = { bag: 4, box: 3, crate: 1, tyre: 2, plank: 2, can: 6, bottle: 5, paper: 4, bucket: 1 };
 
 function finishSprite(spec, paint, rng, amount) {
   const { w, h } = spec;
