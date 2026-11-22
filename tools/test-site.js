@@ -67,6 +67,14 @@ async function desktop(browser, port) {
   await wait(900);
   check('holding an arrow drives the truck', await page.evaluate(() => __dump.dx) < start - 10);
 
+  await page.keyboard.down('ArrowLeft');
+  await wait(4000);
+  await page.keyboard.up('ArrowLeft');
+  await wait(1500);
+  const far = await page.evaluate(() => ({ dx: __dump.dx, cam: __dump.camX }));
+  check('the road carries on past the screen edge, camera following', far.dx < -1000 && Math.abs(far.cam - far.dx) < 5,
+    `truck ${Math.round(far.dx)}, camera ${Math.round(far.cam)}`);
+
   // A hidden tab has to go quiet, and come back when it's visible again.
   const setHidden = value => page.evaluate(v => {
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });

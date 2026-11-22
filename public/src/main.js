@@ -1,7 +1,7 @@
 import RAPIER from '../vendor/rapier.mjs';
 import { PROJECTS } from './projects.js';
 import { mulberry, loadProjectImages, makeProjectSprite, makeFillerSprites } from './junk.js';
-import { paintBackground, paintGroundLip, paintGrade } from './scene.js';
+import { makeScenery, paintGrade } from './scene.js';
 import {
   initSound, setMuted, soundState, pauseSound, engineStart, engineThrottle, engineStop,
   hydraulics, reverseBeeps, thud,
@@ -26,11 +26,12 @@ const TOP_SPEED = { forward: 310, backward: 180 };   // world units per second
 const ACCELERATION = 260;
 const ROLL_TO_STOP = 340;
 const EDGE_GAP = 8;           // the truck stops this far from the screen edge
+const LOOK_AHEAD = .5;        // seconds of driving the camera looks ahead
 const DRAG_THRESHOLD = 7;     // px of travel before a press becomes a drag
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const canvas = document.getElementById('scene');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false });
 const unloadBtn = document.getElementById('unload');
 const hintEl = document.getElementById('hint');
 const controls = document.getElementById('controls');
@@ -52,13 +53,17 @@ function computeView() {
   return { vw, vh, narrow, W, scale, visW, visH, offX: (visW - W) / 2, offY: GROUND - groundFrac * visH };
 }
 
-const toWorld = (px, py) => ({ x: px / view.scale - view.offX, y: py / view.scale + view.offY });
+const toWorld = (px, py) => ({ x: px / view.scale - view.offX + camX, y: py / view.scale + view.offY });
+
+// The part of the world on screen, left to right.
+const onScreen = () => ({ left: camX - view.offX, right: camX + view.W + view.offX });
 
 /* ---------- State ---------- */
 
-let view, world, parts, projectImages, bg, lip, grade;
-let items = [], truckBody, bedBody, gateCollider, leftWall, rightWall;
+let view, world, parts, projectImages, scenery, grade;
+let items = [], truckBody, bedBody, gateCollider, rightWall;
 let truckX, truckDX = 0, travel, moundX, hinge;
+let camX = 0;   // how far the camera has followed the truck, never right of the dump
 let cycleFrom = 0, cycleTravel = 0;
 let driveDir = 0, driveV = 0, straining = false, wheelRoll = 0;
 const dirHeld = { forward: false, backward: false };
@@ -95,13 +100,13 @@ function addColliderFromShape(shape, body, sprite) {
 
 function buildStatics() {
   const ground = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-  const pts = [-30, GROUND / M];
+  const pts = [(moundX - 200) / M, GROUND / M];
   for (let x = moundX; x <= view.W + 300; x += 16) pts.push(x / M, terrainY(x) / M);
   pts.push((view.W + 300) / M, (terrainY(view.W + 300) - 1500) / M);
   world.createCollider(RAPIER.ColliderDesc.polyline(new Float32Array(pts)).setFriction(.6), ground);
-  // A thick slab under the flat ground, so nothing can tunnel through it.
+  // Solid ground everywhere below the line, however far the truck drives.
   world.createCollider(
-    RAPIER.ColliderDesc.cuboid(80, 1).setTranslation(30, GROUND / M + 1).setFriction(.6),
+    RAPIER.ColliderDesc.halfspace({ x: 0, y: -1 }).setTranslation(0, GROUND / M).setFriction(.6),
     ground,
   );
 
@@ -120,14 +125,12 @@ function buildStatics() {
   rect(135, 632, 1148, 862);
   rect(150, 372, 462, 632);
 
-  // Invisible walls at the screen edges keep everything in view.
-  leftWall = world.createCollider(RAPIER.ColliderDesc.cuboid(.5, 40));
+  // An invisible wall at the right edge, past the dump. The left is open road.
   rightWall = world.createCollider(RAPIER.ColliderDesc.cuboid(.5, 40));
-  placeSideWalls();
+  placeSideWall();
 }
 
-function placeSideWalls() {
-  leftWall.setTranslation({ x: -view.offX / M - .5, y: 0 });
+function placeSideWall() {
   rightWall.setTranslation({ x: (view.W + view.offX) / M + .5, y: 0 });
 }
 
@@ -218,6 +221,7 @@ function buildWorld() {
   moundX = view.narrow ? 1270 : 1640;
   travel = view.narrow ? 130 : 200;
   truckDX = 0;
+  camX = 0;
   wheelRoll = 0;
   driveV = 0;
   straining = false;
@@ -366,7 +370,7 @@ const TAIL = (NATIVE.hinge.x + 153 - NATIVE.centerX) * SCALE;   // closed tailga
 
 function driveLimits() {
   return {
-    min: -view.offX + EDGE_GAP + NOSE - truckX,
+    min: -Infinity,
     max: view.W + view.offX - EDGE_GAP - TAIL - truckX,
   };
 }
@@ -416,6 +420,13 @@ function updateDrive(dt) {
     const w = WHEELS[1 + Math.floor(Math.random() * 2)];
     spawnDust(truckX + truckDX + (w.x - NATIVE.centerX) * SCALE, GROUND + 2, 1);
   }
+}
+
+/** Follows the truck once it leaves the dump, looking ahead the way it's going. */
+function updateCamera(dt) {
+  const target = Math.min(0, truckDX + driveV * LOOK_AHEAD);
+  camX += (target - camX) * (1 - Math.exp(-dt * 4));
+  if (Math.abs(target - camX) < .05) camX = target;
 }
 
 /** The arrow pressed most recently wins while both are held. */
@@ -493,12 +504,12 @@ function updateDriveSound(now) {
 // Last resort for anything that has actually gone through a wall or the ground.
 // Items merely resting near the screen edge must be left alone.
 function rescueStrays() {
-  const minX = -view.offX + 30, maxX = view.W + view.offX - 30;
+  const maxX = view.W + view.offX - 30;
   for (const it of items) {
     if (it === held?.item) continue;
     const p = worldPos(it);
-    if (p.x >= -view.offX - 60 && p.x <= view.W + view.offX + 60 && p.y <= GROUND + 60) continue;
-    it.body.setTranslation({ x: clamp(p.x, minX + 60, maxX - 60) / M, y: (GROUND - 520) / M }, true);
+    if (p.x <= view.W + view.offX + 60 && p.y <= GROUND + 60) continue;
+    it.body.setTranslation({ x: Math.min(p.x, maxX - 60) / M, y: (GROUND - 520) / M }, true);
     it.body.setLinvel({ x: 0, y: 0 }, true);
     it.body.setAngvel(0, true);
     it.lastV = { x: 0, y: 0 };
@@ -509,12 +520,14 @@ function rescueStrays() {
 function stepSim() {
   updateTruck(STEP);
   updateDrive(STEP);
+  updateCamera(STEP);
 
   if (held) {
     const body = held.item.body;
     const t = body.translation();
     const target = toWorld(pointer.x, pointer.y);
-    const tx = clamp(target.x + held.dx, -view.offX + 20, view.W + view.offX - 20) / M;
+    const { left, right } = onScreen();
+    const tx = clamp(target.x + held.dx, left + 20, right - 20) / M;
     const ty = clamp(target.y + held.dy, view.offY + 10, GROUND - 10) / M;
     let vx = (tx - t.x) * 26, vy = (ty - t.y) * 26;
     const speed = Math.hypot(vx, vy);
@@ -625,7 +638,8 @@ function drawLabel(it) {
   const text = it.project.name;
   ctx.font = '700 17px "Courier New", monospace';
   const w = ctx.measureText(text).width + 18;
-  const x = clamp(p.x, -view.offX + w / 2 + 6, view.W + view.offX - w / 2 - 6);
+  const { left, right } = onScreen();
+  const x = clamp(p.x, left + w / 2 + 6, right - w / 2 - 6);
   const y = Math.max(view.offY + 30, p.y - it.sprite.h * .5 - 34);
   ctx.fillStyle = '#d9c9a3';
   ctx.fillRect(x - w / 2, y - 14, w, 26);
@@ -664,13 +678,11 @@ function render(now) {
   const sy = shake ? (Math.random() - .5) * shake : 0;
   const dpr = canvas.width / view.vw;
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const over = 1.012;
-  ctx.drawImage(bg, sx * dpr - canvas.width * (over - 1) / 2, sy * dpr - canvas.height * (over - 1) / 2,
-    canvas.width * over, canvas.height * over);
+  const ox = Math.round(sx * dpr), oy = Math.round(sy * dpr);
+  scenery.drawBack(ctx, camX, ox, oy);
 
   const s = view.scale * dpr;
-  const worldSpace = () => ctx.setTransform(s, 0, 0, s, (view.offX * view.scale + sx) * dpr, (-view.offY * view.scale + sy) * dpr);
+  const worldSpace = () => ctx.setTransform(s, 0, 0, s, (view.offX - camX) * s + ox, -view.offY * s + oy);
   worldSpace();
 
   drawCrows(t);
@@ -707,9 +719,7 @@ function render(now) {
     drawWheels(ctx, parts, wheelRoll);
   });
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(lip, sx * dpr - canvas.width * (over - 1) / 2, sy * dpr - canvas.height * (over - 1) / 2,
-    canvas.width * over, canvas.height * over);
+  scenery.drawLip(ctx, camX, ox, oy);
   worldSpace();
   drawTruckShadow(truckAt);
 
@@ -852,8 +862,7 @@ function repaint() {
   const dpr = Math.min(devicePixelRatio || 1, 2);
   canvas.width = Math.round(view.vw * dpr);
   canvas.height = Math.round(view.vh * dpr);
-  bg = paintBackground(view, { ground: GROUND, terrain: terrainY, moundX });
-  lip = paintGroundLip(view, bg, GROUND);
+  scenery = makeScenery(view, { ground: GROUND, terrain: terrainY, moundX });
   grade = paintGrade(view);
   placeControls();
 }
@@ -873,15 +882,12 @@ function onResize() {
       buildWorld();
       makeCrows();
     } else {
-      placeSideWalls();
-      if (phase === 'idle') {
-        const { min, max } = driveLimits();
-        placeTruck(clamp(truckDX, min, max));
-      }
-      const minX = (-view.offX + 30) / M, maxX = (view.W + view.offX - 30) / M;
+      placeSideWall();
+      if (phase === 'idle') placeTruck(Math.min(truckDX, driveLimits().max));
+      const maxX = (view.W + view.offX - 30) / M;
       for (const it of items) {
         const t = it.body.translation();
-        if (t.x < minX || t.x > maxX) it.body.setTranslation({ x: clamp(t.x, minX, maxX), y: t.y }, true);
+        if (t.x > maxX) it.body.setTranslation({ x: maxX, y: t.y }, true);
       }
     }
     repaint();
@@ -971,7 +977,8 @@ async function boot() {
       get tilt() { return tilt; },
       get bed() { return bedCount(); },
       items: () => items.map(it => ({ ...worldPos(it), project: it.project?.name ?? null, w: it.sprite.w, h: it.sprite.h, inBed: itemInBed(it), sleeping: it.body.isSleeping() })),
-      toScreen: (x, y) => ({ x: (x + view.offX) * view.scale, y: (y - view.offY) * view.scale }),
+      toScreen: (x, y) => ({ x: (x + view.offX - camX) * view.scale, y: (y - view.offY) * view.scale }),
+      get camX() { return camX; },
       hinge: () => hinge,
       get dx() { return truckDX; },
       get v() { return driveV; },
