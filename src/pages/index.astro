@@ -1,0 +1,34 @@
+---
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import MorungWeave from '../components/MorungWeave.astro';
+import Work from '../components/Work.astro';
+import Research from '../components/Research.astro';
+import AboutTeaser from '../components/AboutTeaser.astro';
+import Contact from '../components/Contact.astro';
+import { NAME, IDENTITY, SITE, PERSON_ID, person, paper } from '../data/person.js';
+import { WORK, workUrl } from '../data/work.js';
+
+const title = `${NAME} · Freelance Software Engineer · Dimapur, Nagaland`;
+const description = `${NAME} is a ${IDENTITY}. Small businesses, built to run like big ones: websites, AI that answers customers, and WhatsApp automation that follows up. Research published by IEEE.`;
+const graph = [
+  { '@type': 'ProfilePage', '@id': `${SITE}/#profile`, url: `${SITE}/`, name: title, mainEntity: { '@id': PERSON_ID } },
+  person,
+  paper,
+  {
+    '@type': 'ItemList',
+    '@id': `${SITE}/#work`,
+    name: `Selected work by ${NAME}`,
+    itemListElement: WORK.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE}${workUrl(p)}`, name: p.name })),
+  },
+];
+---
+<Base title={title} description={description} ogType="profile" graph={graph}>
+  <Hero />
+  <MorungWeave />
+  <Work />
+  <Research />
+  <AboutTeaser />
+  <Contact />
+  <MorungWeave offset={36} />
+</Base>

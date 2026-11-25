@@ -1,0 +1,72 @@
+---
+// Research: the TrafficVision paper, its numbers and its team.
+import Figure from './Figure.astro';
+import { PROJECTS, PAPER } from '../data/projects.js';
+import { FIGURES } from '../data/figures.js';
+import { workUrl } from '../data/work.js';
+
+const tv = PROJECTS.find(p => p.id === 'traffic-vision')!;
+const code = tv.links.find((l: any) => l.label === 'GitHub');
+const STATS = [
+  { value: '95%', label: 'mAP, two-wheeler detection' },
+  { value: '98.3%', label: 'mAP, helmet detection' },
+  { value: '0.995', label: 'mAP@0.5, number-plate detection' },
+];
+---
+<section id="research" class="research" aria-labelledby="research-title" data-art-zone>
+  <div class="wrap grid">
+    <div class="body">
+      <header>
+        <p class="label">research</p>
+        <h2 id="research-title" class="sec-title">Published <em>by IEEE.</em></h2>
+      </header>
+      <p class="paper"><a href={PAPER.url} rel="noopener">{PAPER.title}</a></p>
+      <p class="venue">ICC-CNS 2026 · DOI <a href={PAPER.url} rel="noopener">{PAPER.doi}</a></p>
+      <p class="story">{tv.work.story}</p>
+
+      <dl class="stats">
+        {STATS.map(s => <div><dt>{s.label}</dt><dd>{s.value}</dd></div>)}
+      </dl>
+
+      <div class="team">
+        <p class="label">with, at The Assam Kaziranga University</p>
+        <ul>
+          {tv.team.map((m: any) => <li>{m.linkedin ? <a href={m.linkedin} rel="noopener">{m.name}</a> : m.name}</li>)}
+        </ul>
+      </div>
+
+      <p class="actions">
+        <a class="button" href={workUrl(tv)}>Read the case study</a>
+        <a class="button button--ghost" href={PAPER.url} rel="noopener">The paper on IEEE ↗</a>
+        {code && <a class="button button--ghost" href={code.url} rel="noopener">Demo code ↗</a>}
+      </p>
+    </div>
+    <Figure class="research-art" art={FIGURES.gaze.art} caption={FIGURES.gaze.caption} fray={FIGURES.gaze.fray} field={30} />
+  </div>
+</section>
+
+<style>
+  .research { padding-block: clamp(4rem, 10vw, 8rem) 2rem; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.75fr); gap: clamp(2rem, 5vw, 5rem); align-items: center; }
+  .grid :global(.research-art .art-base) { max-height: 30rem; width: auto; max-width: 100%; }
+  .paper { margin: 2rem 0 0.5rem; font-size: clamp(1.25rem, 2vw, 1.6rem); line-height: 1.3; max-width: 44rem; }
+  .paper a { text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+  .venue { margin: 0 0 1.5rem; font: 400 0.875rem/1.5 var(--mono); color: var(--muted); }
+  .story { max-width: 40rem; margin: 0 0 2.5rem; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 2.5rem; border-block: 1px solid var(--line); }
+  .stats div { padding: 1.5rem 1.5rem 1.5rem 0; display: flex; flex-direction: column-reverse; gap: 0.4rem; }
+  .stats div + div { border-left: 1px solid var(--line); padding-left: 1.5rem; }
+  .stats dd { margin: 0; font-size: clamp(2.25rem, 4.5vw, 3.75rem); font-weight: 300; letter-spacing: -0.04em; line-height: 1; }
+  .stats dt { font: 400 0.8125rem/1.4 var(--mono); color: var(--muted); }
+  .team ul { list-style: none; margin: 0.75rem 0 2.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+  .team a { text-underline-offset: 0.25em; text-decoration-color: var(--line); }
+  .team a:hover { text-decoration-color: currentColor; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0; }
+
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .grid :global(.research-art) { max-width: 20rem; margin-inline: auto; }
+    .stats { grid-template-columns: 1fr; }
+    .stats div + div { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
+  }
+</style>

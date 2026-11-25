@@ -1,0 +1,61 @@
+---
+// Every page: head tags, structured data, header and footer.
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE, NAME, website } from '../data/person.js';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Extra structured-data nodes for this page; the WebSite node is always included. */
+  graph?: object[];
+  ogImage?: string;
+  ogType?: 'website' | 'profile' | 'article';
+  /** Keep this page out of search results (the 404 page). */
+  noindex?: boolean;
+}
+
+const { title, description, graph = [], ogImage = '/og.jpg', ogType = 'website', noindex = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, SITE).href;
+const image = new URL(ogImage, SITE).href;
+// "<" is escaped so no text in the data can ever close the script tag.
+const ld = JSON.stringify({ '@context': 'https://schema.org', '@graph': [website, ...graph] }).replace(/</g, '\\u003c');
+---
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>{title}</title>
+  <meta name="description" content={description}>
+  <meta name="author" content={NAME}>
+  {noindex ? <meta name="robots" content="noindex"> : <link rel="canonical" href={canonical}>}
+  <meta name="theme-color" content="#0e0d0c" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2ede4" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:type" content={ogType}>
+  <meta property="og:site_name" content={NAME}>
+  <meta property="og:title" content={title}>
+  <meta property="og:description" content={description}>
+  <meta property="og:url" content={canonical}>
+  <meta property="og:image" content={image}>
+  <meta property="og:locale" content="en_IN">
+  <meta name="twitter:card" content="summary_large_image">
+  <script is:inline src="/theme.js"></script>
+  <script type="application/ld+json" set:html={ld} />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <Header />
+  <main id="main" tabindex="-1">
+    <slot />
+  </main>
+  <Footer />
+  <script>
+    import '../scripts/smooth-scroll';
+  </script>
+</body>
+</html>

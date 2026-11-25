@@ -1,0 +1,54 @@
+---
+import Base from '../layouts/Base.astro';
+import Rich from '../components/Rich.astro';
+import Figure from '../components/Figure.astro';
+import Contact from '../components/Contact.astro';
+import { NOTICES } from '../data/projects.js';
+import { NAME, IDENTITY, SITE, PERSON_ID, person, paper } from '../data/person.js';
+
+const about = NOTICES.find(n => n.id === 'about')!;
+const title = `About ${NAME} · Freelance Software Engineer, Dimapur`;
+const description = `${NAME} is a ${IDENTITY}. AI integration, workflow automation and web applications; research published by IEEE.`;
+const graph = [
+  { '@type': 'AboutPage', '@id': `${SITE}/about/#page`, url: `${SITE}/about/`, name: title, mainEntity: { '@id': PERSON_ID } },
+  person,
+  paper,
+];
+const facts = Object.entries(about.fields);
+---
+<Base title={title} description={description} ogType="profile" graph={graph}>
+  <article class="about" data-art-zone>
+    <div class="wrap grid">
+      <div>
+        <p class="label">about</p>
+        <h1 class="sec-title">{NAME}</h1>
+        <p class="identity">{IDENTITY.replace(/^./, c => c.toUpperCase())}.</p>
+        {about.brief.map((para: any) => <p class="para"><Rich value={para} /></p>)}
+        <dl class="facts">
+          {facts.map(([k, v]) => <div><dt>{k}</dt><dd><Rich value={v as any} /></dd></div>)}
+        </dl>
+      </div>
+      <Figure class="about-art" art="warrior-full" caption="fig. 04 · naga warrior" field={30} />
+    </div>
+  </article>
+  <Contact />
+</Base>
+
+<style>
+  .about { padding-block: clamp(2.5rem, 6vw, 4.5rem) 1rem; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr); gap: clamp(2rem, 6vw, 6rem); align-items: start; }
+  .identity { margin: 1.5rem 0 2rem; font-size: clamp(1.25rem, 2vw, 1.6rem); line-height: 1.4; letter-spacing: -0.015em; max-width: 36rem; }
+  .para { max-width: 40rem; margin: 0 0 1.25rem; }
+  .para a, .facts a { text-underline-offset: 0.2em; }
+  .facts { margin: 2.5rem 0 0; display: grid; gap: 0.75rem; border-top: 1px solid var(--line); padding-top: 1.5rem; max-width: 40rem; }
+  .facts div { display: grid; grid-template-columns: 8rem 1fr; gap: 1rem; }
+  .facts dt { font: 400 0.8125rem/1.7 var(--mono); color: var(--muted); }
+  .facts dd { margin: 0; overflow-wrap: anywhere; }
+  .grid :global(.about-art) { position: sticky; top: 6rem; }
+  .grid :global(.about-art .art-base) { max-height: 75vh; width: auto; max-width: 100%; }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .grid :global(.about-art) { position: static; max-width: 16rem; margin-inline: auto; }
+    .facts div { grid-template-columns: 1fr; gap: 0.1rem; }
+  }
+</style>

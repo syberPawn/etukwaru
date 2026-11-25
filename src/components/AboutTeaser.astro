@@ -1,0 +1,41 @@
+---
+// About, in short, on the home page; the full version is /about/.
+import Figure from './Figure.astro';
+import Rich from './Rich.astro';
+import { NOTICES } from '../data/projects.js';
+
+const about = NOTICES.find(n => n.id === 'about')!;
+const facts = ['Based in', 'Role', 'Works', 'Publication'].map(k => [k, about.fields[k]]);
+---
+<section id="about" class="about" aria-labelledby="about-title" data-art-zone>
+  <div class="wrap grid">
+    <div>
+      <header>
+        <p class="label">about</p>
+        <h2 id="about-title" class="sec-title">About <em>Sangamlung.</em></h2>
+      </header>
+      <p class="lead"><Rich value={about.brief[0]} /></p>
+      <dl class="facts">
+        {facts.map(([k, v]) => <div><dt>{k}</dt><dd><Rich value={v} /></dd></div>)}
+      </dl>
+      <a class="button button--ghost" href="/about/">More about Sangamlung</a>
+    </div>
+    <Figure class="about-art" art="warrior-full" caption="fig. 04 · naga warrior" field={30} />
+  </div>
+</section>
+
+<style>
+  .about { padding-block: clamp(4rem, 10vw, 8rem) 2rem; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); gap: clamp(2rem, 6vw, 6rem); align-items: center; }
+  .lead { margin: 2rem 0; font-size: clamp(1.2rem, 1.8vw, 1.45rem); line-height: 1.5; max-width: 40rem; }
+  .facts { margin: 0 0 2.25rem; display: grid; gap: 0.75rem; border-top: 1px solid var(--line); padding-top: 1.25rem; max-width: 40rem; }
+  .facts div { display: grid; grid-template-columns: 8rem 1fr; gap: 1rem; }
+  .facts dt { font: 400 0.8125rem/1.6 var(--mono); color: var(--muted); }
+  .facts dd { margin: 0; }
+  .grid :global(.about-art .art-base) { max-height: 36rem; width: auto; max-width: 100%; }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .grid :global(.about-art) { max-width: 18rem; margin-inline: auto; }
+    .facts div { grid-template-columns: 1fr; gap: 0.1rem; }
+  }
+</style>

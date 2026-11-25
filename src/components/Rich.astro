@@ -1,0 +1,11 @@
+---
+// Text from src/data/projects.js that may mix words and links:
+// 'plain text', or ['Text ', { text, url }, ' more text'].
+type Part = string | { text: string; url: string };
+interface Props { value: Part | Part[] }
+const parts: Part[] = Array.isArray(Astro.props.value) ? Astro.props.value : [Astro.props.value];
+const external = (url: string) => /^https?:\/\//.test(url) && !url.startsWith('https://etukwaru.online');
+---
+{parts.map(p => typeof p === 'string'
+  ? p
+  : <a href={p.url} rel={external(p.url) ? 'noopener' : undefined}>{p.text}</a>)}

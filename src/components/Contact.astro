@@ -1,0 +1,119 @@
+---
+// Contact: an open invitation, the email first, then the profiles.
+// Clicking the email opens a small menu (mail app, Gmail, Outlook, copy),
+// because a plain mailto: link does nothing on a computer with no mail app
+// set up, which is common when people use Gmail in the browser. Without
+// JavaScript it is a plain mailto: link.
+import Figure from './Figure.astro';
+import { CONTACT } from '../data/projects.js';
+import { FIGURES } from '../data/figures.js';
+
+const to = encodeURIComponent(CONTACT.email);
+const subject = encodeURIComponent('A project');
+const OPTIONS = [
+  { label: 'Your email app', href: `mailto:${CONTACT.email}?subject=${subject}` },
+  { label: 'Gmail', href: `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}`, external: true },
+  { label: 'Outlook', href: `https://outlook.live.com/mail/0/deeplink/compose?to=${to}&subject=${subject}`, external: true },
+];
+---
+<section id="contact" class="contact" aria-labelledby="contact-title" data-art-zone>
+  <div class="wrap grid">
+  <div>
+    <p class="label">contact</p>
+    <h2 id="contact-title" class="sec-title">Have something in mind?<br /><em>Let's build it.</em></h2>
+    <p class="sec-lede">I'm open to freelance work: an AI assistant for your website, WhatsApp messages that send and track themselves, or a site or app built from scratch. Based in Dimapur, Nagaland, working with clients in India and abroad.</p>
+    <div class="mail">
+      <a class="email" href={`mailto:${CONTACT.email}`} aria-haspopup="menu" aria-expanded="false" aria-controls="mail-menu">{CONTACT.email}</a>
+      <div class="mail-menu" id="mail-menu" role="menu" aria-label="Write to me with" hidden>
+        <p class="label">write with</p>
+        {OPTIONS.map(o => (
+          <a role="menuitem" href={o.href} target={o.external ? '_blank' : undefined} rel={o.external ? 'noopener' : undefined}>
+            {o.label}{o.external && <span aria-hidden="true"> ↗</span>}
+          </a>
+        ))}
+        <button type="button" role="menuitem" class="copy" data-copy={CONTACT.email}>Copy the address</button>
+      </div>
+      <span class="copied visually-hidden" role="status"></span>
+    </div>
+    <ul class="profiles">
+      <li><a href={CONTACT.linkedin} rel="me noopener">LinkedIn ↗</a></li>
+      <li><a href={CONTACT.github} rel="me noopener">GitHub ↗</a></li>
+      <li><a href={CONTACT.instagram} rel="me noopener">Instagram ↗</a></li>
+    </ul>
+  </div>
+    <Figure class="contact-art" art={FIGURES.hornbill.art} caption={FIGURES.hornbill.caption} dissolve={FIGURES.hornbill.dissolve} field={30} />
+  </div>
+</section>
+
+<script>
+  const link = document.querySelector<HTMLAnchorElement>('.contact .email')!;
+  const menu = document.getElementById('mail-menu')!;
+  const items = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  const copy = menu.querySelector<HTMLButtonElement>('.copy')!;
+  const out = document.querySelector<HTMLElement>('.contact .copied')!;
+
+  const setOpen = (open: boolean, focusFirst = false) => {
+    menu.hidden = !open;
+    link.setAttribute('aria-expanded', String(open));
+    if (open && focusFirst) items[0].focus();
+  };
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    setOpen(menu.hidden, e.detail === 0);              // keyboard: focus the first choice
+  });
+  menu.addEventListener('click', e => { if ((e.target as Element).closest('a')) setOpen(false); });
+  menu.addEventListener('keydown', e => {
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(at + 1) % items.length].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); items[(at - 1 + items.length) % items.length].focus(); }
+    else if (e.key === 'Escape') { setOpen(false); link.focus(); }
+  });
+  document.addEventListener('click', e => {
+    if (!menu.hidden && !menu.contains(e.target as Node) && e.target !== link) setOpen(false);
+  });
+
+  if (!navigator.clipboard) copy.hidden = true;
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(copy.dataset.copy!);
+      copy.textContent = 'Copied';
+      out.textContent = 'Email address copied';
+    } catch {
+      copy.textContent = 'Copy failed';
+    }
+    setTimeout(() => { copy.textContent = 'Copy the address'; out.textContent = ''; }, 2000);
+  });
+</script>
+
+<style>
+  .contact { padding-block: clamp(4rem, 10vw, 8rem) clamp(3rem, 7vw, 5rem); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.7fr); gap: clamp(2rem, 5vw, 5rem); align-items: center; }
+  .grid :global(.contact-art .art-base) { max-height: 26rem; width: auto; max-width: 100%; }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .grid :global(.contact-art) { max-width: 16rem; margin-inline: auto; }
+  }
+  .sec-title { margin-bottom: 1.5rem; }
+  .mail { position: relative; margin: 2.5rem 0 1.75rem; }
+  .email {
+    font-size: clamp(1.4rem, 4vw, 3rem); font-weight: 400; letter-spacing: -0.03em; text-decoration: none;
+    background: linear-gradient(var(--accent), var(--accent)) 0 100% / 100% 2px no-repeat; padding-bottom: 0.15em;
+    overflow-wrap: anywhere;
+  }
+  .email:hover, .email[aria-expanded="true"] { color: var(--accent); }
+  .mail-menu {
+    position: absolute; z-index: 20; top: calc(100% + 0.75rem); left: 0; min-width: 15rem;
+    display: grid; gap: 0.15rem; padding: 0.6rem; border-radius: 0.9rem;
+    background: var(--bg-raise); border: 1px solid var(--line); box-shadow: 0 1.25rem 3rem -1.5rem rgb(0 0 0 / 0.6);
+  }
+  .mail-menu[hidden] { display: none; }
+  .mail-menu .label { padding: 0.4rem 0.75rem 0.3rem; font-size: 0.75rem; }
+  .mail-menu a, .mail-menu button {
+    display: block; text-align: left; padding: 0.7rem 0.75rem; border-radius: 0.55rem; text-decoration: none;
+    font: 400 1rem/1.2 var(--sans); color: var(--ink); background: none; border: 0; cursor: pointer;
+  }
+  .mail-menu a:hover, .mail-menu button:hover, .mail-menu a:focus-visible, .mail-menu button:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+  .mail-menu .copy { border-top: 1px solid var(--line); border-radius: 0 0 0.55rem 0.55rem; margin-top: 0.2rem; font-family: var(--mono); font-size: 0.875rem; }
+  .profiles { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.75rem 2rem; font-size: 1.125rem; }
+  .profiles a { text-underline-offset: 0.25em; }
+</style>

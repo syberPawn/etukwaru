@@ -1,0 +1,41 @@
+---
+// The morung pattern as a strip of worn, woven cloth (see src/scripts/weave.ts). Decoration
+// only. Without JavaScript it shows the vector pattern as a background.
+interface Props {
+  /** Shift the pattern along, so two bands on a page don't line up. */
+  offset?: number;
+}
+const { offset = 0 } = Astro.props;
+---
+<div class="weave" data-offset={offset} aria-hidden="true">
+  <div class="cloth">
+    <canvas class="wv-base"></canvas>
+    <canvas class="wv-fx"></canvas>
+  </div>
+</div>
+
+<script>
+  import { mountWeaves } from '../scripts/weave';
+  mountWeaves();
+</script>
+
+<style>
+  /* The cloth fills about 70% of this height; loose fibres and drifting
+     threads use the rest. */
+  .weave {
+    position: relative;
+    height: clamp(7.5rem, 12vw, 11.5rem);
+    background: url('/morung-tile.svg') repeat-x 0 50% / auto 70%;
+    cursor: crosshair;
+    touch-action: manipulation;
+  }
+  /* Once the canvas has drawn, it replaces the plain background. */
+  .weave:global(.drawn) { background: none; }
+  .cloth { position: absolute; inset: 0; }
+  .cloth canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* The moving layer reaches above and below the strip; it must not catch clicks meant for the page. */
+  .cloth .wv-fx { pointer-events: none; top: -120%; bottom: auto; height: 340%; }
+  @media (prefers-reduced-motion: reduce) {
+    .weave { cursor: default; }
+  }
+</style>

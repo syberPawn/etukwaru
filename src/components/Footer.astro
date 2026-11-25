@@ -1,0 +1,116 @@
+---
+// The footer, and the Versions window: other versions of this portfolio.
+// Without JavaScript, "Versions" is a plain link to the first version.
+import { CONTACT } from '../data/projects.js';
+import { VERSIONS } from '../data/versions.js';
+import MEDIA from '../data/media.json';
+
+const year = new Date().getFullYear();
+const pad = (n: number) => String(n).padStart(2, '0');
+const versions = VERSIONS.map(v => ({ ...v, img: (MEDIA as any)[v.image] }));
+---
+<footer class="site-footer">
+  <div class="wrap foot">
+    <p class="foot-name">© {year} Sangamlung Gangmei · Dimapur, Nagaland</p>
+    <ul class="foot-links">
+      <li><a href={CONTACT.linkedin} rel="me">LinkedIn</a></li>
+      <li><a href={CONTACT.github} rel="me">GitHub</a></li>
+      <li><a href={CONTACT.instagram} rel="me">Instagram</a></li>
+      <li><a href={versions[0].url} class="versions-open" aria-haspopup="dialog">Versions <span class="v-count">{pad(versions.length)}</span></a></li>
+    </ul>
+  </div>
+</footer>
+
+<dialog class="versions" aria-labelledby="versions-title">
+  <div class="v-panel">
+    <header class="v-head">
+      <div>
+        <p class="label">versions</p>
+        <h2 id="versions-title" class="v-title">Other versions <em>of this site.</em></h2>
+      </div>
+      <button type="button" class="v-close" aria-label="Close">✕</button>
+    </header>
+    <p class="v-lede">The same work, told differently. Pick one to open it.</p>
+    <ol class="v-list">
+      {versions.map((v, i) => (
+        <li>
+          <a class="v-card" href={v.url}>
+            {v.img && <img src={v.img.src} alt="" width={v.img.w} height={v.img.h} loading="lazy" decoding="async" />}
+            <span class="v-body">
+              <span class="v-meta"><span class="v-num">{pad(i + 1)}</span><span>{v.year}</span>{v.tags.map(t => <span>{t}</span>)}</span>
+              <span class="v-name">{v.name} <span class="v-arrow" aria-hidden="true">→</span></span>
+              <span class="v-line">{v.line}</span>
+            </span>
+          </a>
+        </li>
+      ))}
+    </ol>
+    <p class="v-foot label">you're on the portfolio · more versions to come</p>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('dialog.versions')!;
+  const open = document.querySelector<HTMLAnchorElement>('.versions-open')!;
+  open.addEventListener('click', e => {
+    e.preventDefault();
+    dialog.showModal();
+    dialog.querySelector<HTMLAnchorElement>('.v-card')?.focus();
+  });
+  dialog.querySelector('.v-close')!.addEventListener('click', () => dialog.close());
+  // A click on the dimmed page around the window closes it.
+  dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
+  dialog.addEventListener('close', () => open.focus());
+</script>
+
+<style>
+  .site-footer { border-top: 1px solid var(--line); }
+  .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem 2rem; padding-block: 2rem 2.5rem; font: 400 0.875rem/1.5 var(--mono); color: var(--muted); }
+  .foot p { margin: 0; }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; list-style: none; margin: 0; padding: 0; }
+  .foot-links a { color: var(--ink); text-underline-offset: 0.25em; }
+  .v-count { color: var(--accent); }
+
+  /* The Versions window, in the site's own look. */
+  .versions {
+    width: min(44rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); padding: 0; border: 1px solid var(--line);
+    border-radius: 1.1rem; background: var(--bg); color: var(--ink); overflow: auto;
+    box-shadow: 0 2rem 6rem -2rem rgb(0 0 0 / 0.7);
+  }
+  .versions::backdrop { background: rgb(8 7 6 / 0.72); backdrop-filter: blur(3px); }
+  .versions[open] { animation: v-in 260ms cubic-bezier(.2, .7, .2, 1); }
+  @keyframes v-in { from { opacity: 0; transform: translateY(0.75rem) scale(0.985); } }
+  .v-panel { padding: clamp(1.25rem, 4vw, 2rem); }
+  .v-panel::before {
+    content: ''; display: block; height: 0.35rem; margin: calc(-1 * clamp(1.25rem, 4vw, 2rem)) calc(-1 * clamp(1.25rem, 4vw, 2rem)) clamp(1.25rem, 4vw, 1.75rem);
+    background: linear-gradient(90deg, var(--morung-black) 0 12%, var(--morung-green) 0 30%, var(--morung-yellow) 0 48%, var(--morung-red) 0);
+  }
+  .v-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+  .v-title { margin: 0.5rem 0 0; font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 300; letter-spacing: -0.035em; line-height: 1.05; }
+  .v-title em { font-style: italic; font-weight: 650; }
+  .v-close {
+    flex: none; width: 2.5rem; height: 2.5rem; border-radius: 50%; border: 1px solid var(--line); background: transparent;
+    color: var(--ink); font-size: 1rem; cursor: pointer;
+  }
+  .v-close:hover { border-color: var(--ink); }
+  .v-lede { margin: 0.9rem 0 1.5rem; color: var(--muted); }
+  .v-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+  .v-card {
+    display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 1.25rem; align-items: center;
+    padding: 0.75rem; border: 1px solid var(--line); border-radius: 0.9rem; text-decoration: none; color: inherit;
+    background: var(--bg-raise); transition: border-color 180ms ease, transform 220ms ease;
+  }
+  .v-card:hover { border-color: var(--muted); transform: translateY(-2px); }
+  .v-card:focus-visible { outline-offset: 2px; }
+  .v-card img { display: block; width: 100%; height: auto; border-radius: 0.6rem; }
+  .v-body { display: grid; gap: 0.45rem; }
+  .v-meta { display: flex; flex-wrap: wrap; gap: 0.25rem 0.8rem; font: 400 0.75rem/1.4 var(--mono); color: var(--muted); }
+  .v-num { color: var(--accent); }
+  .v-name { font-size: 1.35rem; font-weight: 500; letter-spacing: -0.02em; }
+  .v-arrow { display: inline-block; transition: transform 200ms ease; }
+  .v-card:hover .v-arrow { transform: translateX(0.25rem); }
+  .v-line { color: var(--muted); font-size: 0.975rem; line-height: 1.5; }
+  .v-foot { margin: 1.5rem 0 0; font-size: 0.75rem; }
+  @media (max-width: 560px) { .v-card { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { .versions[open] { animation: none; } .v-card, .v-arrow { transition: none; } }
+</style>

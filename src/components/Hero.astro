@@ -1,0 +1,66 @@
+---
+// The first screen: who, what, where, and two ways forward. The figure is
+// decoration; everything it could say is in the text.
+import Figure from './Figure.astro';
+---
+<section class="hero" aria-labelledby="hero-title" data-art-zone>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="hero-meta">
+        <span class="dot" aria-hidden="true"></span>
+        <span>based in dimapur, nagaland</span>
+        <span class="clock" hidden></span>
+      </p>
+      <h1 id="hero-title">
+        <span class="h1-name">Small businesses,</span>
+        <span class="h1-role">built to run like big ones.</span>
+      </h1>
+      <p class="lede">
+        I design and build the online side of your business: the website, the AI that answers customers, and the WhatsApp automation that follows up. One person, start to finish.
+      </p>
+      <div class="cta">
+        <a class="button" href="#contact">Start a project</a>
+        <a class="button button--ghost" href="#work">See the work</a>
+      </div>
+      <p class="availability">
+        <span class="pulse" aria-hidden="true"></span>
+        <span><span class="label">availability</span> Taking on freelance work</span>
+      </p>
+    </div>
+    <Figure class="hero-art" art="warrior" caption="fig. 01 · naga warrior" eager drift={14} field={160} fray="left top" alive />
+  </div>
+</section>
+
+<script>
+  // Local time in Dimapur, to the minute.
+  const clock = document.querySelector<HTMLElement>('.hero .clock')!;
+  const fmt = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+  const tick = () => { clock.textContent = `${fmt.format(new Date())} IST`; };
+  tick();
+  clock.hidden = false;
+  setInterval(tick, 30_000);
+</script>
+
+<style>
+  .hero { padding-block: clamp(2.5rem, 7vh, 5.5rem) clamp(2.5rem, 6vh, 4.5rem); overflow-x: clip; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: clamp(1.5rem, 4vw, 4rem); align-items: center; }
+  .hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.25rem; margin: 0 0 1.75rem; font: 400 0.875rem/1.4 var(--mono); color: var(--muted); }
+  .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--ink); }
+  .clock { color: var(--ink); font-weight: 600; }
+  h1 { margin: 0; font-weight: 300; font-size: clamp(2.35rem, 4.5vw, 4.6rem); line-height: 1; letter-spacing: -0.035em; }
+  .h1-name, .h1-role { display: block; }
+  .h1-role { font-style: italic; font-weight: 650; letter-spacing: -0.045em; margin-top: 0.06em; }
+  .lede { max-width: 34rem; margin: 1.75rem 0 2.25rem; font-size: clamp(1.125rem, 1.5vw, 1.3rem); line-height: 1.55; color: var(--muted); }
+  .cta { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .availability { display: flex; align-items: center; gap: 0.85rem; margin: 2.5rem 0 0; font-weight: 500; }
+  .availability .label { display: block; margin-bottom: 0.15rem; }
+  .pulse { position: relative; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--accent); flex: none; }
+  .pulse::after { content: ''; position: absolute; inset: -0.45rem; border-radius: 50%; border: 1px solid var(--accent); opacity: 0.5; animation: pulse 2.4s ease-out infinite; }
+  @keyframes pulse { from { transform: scale(0.5); opacity: 0.7; } to { transform: scale(1.4); opacity: 0; } }
+
+  @media (max-width: 860px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .hero-grid :global(.hero-art) { max-width: 30rem; margin-inline: auto; width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
+</style>

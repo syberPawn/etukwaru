@@ -1,0 +1,63 @@
+---
+// A character-art figure (see src/scripts/figure.ts). Decoration only: the
+// canvases are hidden from screen readers, and the caption is a visible label.
+// Clicking it blows part of it away as dust, which then settles back.
+// Anything passed as children is laid over the figure (hover details).
+interface Props {
+  art: string;
+  caption: string;
+  eager?: boolean;
+  drift?: number;
+  dissolve?: number;
+  field?: number;
+  fray?: string;
+  alive?: boolean;
+  class?: string;
+}
+const { art, caption, eager = false, drift, dissolve, field, fray, alive = false, class: cls } = Astro.props;
+
+// The canvas's shape is known at build time, so the page doesn't jump when it
+// draws: (columns + drift) characters of width 0.6 across, one per row down.
+// Set as the canvas's own width and height (an inline style would break the
+// security policy); the script replaces them with real pixel sizes.
+const all = import.meta.glob<{ cols: number; rows: string[] }>('../data/art/*.json', { eager: true, import: 'default' });
+const data = all[`../data/art/${art}.json`];
+if (!data) throw new Error(`No figure data for "${art}" in src/data/art/`);
+const width = Math.round((data.cols + (drift ?? 8)) * 6);
+const height = data.rows.length * 10;
+---
+<figure
+  class:list={['art', cls]}
+  data-art={art}
+  data-eager={eager ? '' : undefined}
+  data-drift={drift}
+  data-dissolve={dissolve}
+  data-field={field}
+  data-fray={fray}
+  data-alive={alive ? '' : undefined}
+>
+  <div class="art-stage">
+    <canvas class="art-base" aria-hidden="true" width={width} height={height}></canvas>
+    <canvas class="art-fx" aria-hidden="true" width={width} height={height}></canvas>
+    <slot />
+  </div>
+  <figcaption class="label">{caption}</figcaption>
+</figure>
+
+<script>
+  import { mountFigures } from '../scripts/figure';
+  mountFigures();
+</script>
+
+<style is:global>
+  /* Defaults with no specificity, so a page's own sizing always wins. Size a
+     figure through .art-base; the moving layer (.art-fx) always covers it. */
+  :where(figure.art) { margin: 0; position: relative; }
+  :where(.art-stage) { position: relative; width: fit-content; max-width: 100%; margin-inline: auto; cursor: crosshair; touch-action: manipulation; }
+  :where(.art-base) { display: block; width: 100%; height: auto; }
+  /* The moving layer reaches 40% past the figure on each side and 30% above and
+     below (figure.ts draws with the same margin), so blown-off dust stays visible. */
+  .art-stage > .art-fx { position: absolute; left: -40%; top: -30%; width: 180%; height: 160%; max-width: none; pointer-events: none; }
+  :where(figure.art) > figcaption { margin-top: 0.75rem; text-align: right; font-size: 0.75rem; }
+  @media (prefers-reduced-motion: reduce) { :where(.art-stage) { cursor: default; } }
+</style>

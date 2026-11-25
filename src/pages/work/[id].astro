@@ -1,0 +1,258 @@
+---
+// One page per project: the outcome first, then what it does, how it's built,
+// the facts and the links. Everything comes from src/data/projects.js.
+import Base from '../../layouts/Base.astro';
+import Rich from '../../components/Rich.astro';
+import MorungWeave from '../../components/MorungWeave.astro';
+import { WORK, workUrl, yearOf, categoryOf, videoOf, posterOf, previewOf, galleryOf } from '../../data/work.js';
+import { SITE, PERSON_ID } from '../../data/person.js';
+
+export function getStaticPaths() {
+  return WORK.map((p, i) => ({ params: { id: p.id }, props: { p, next: WORK[(i + 1) % WORK.length], index: i } }));
+}
+
+const { p, next, index } = Astro.props as any;
+const w = p.work;
+const category = categoryOf(p);
+const url = `${SITE}${workUrl(p)}`;
+const title = `${p.name}: ${w.kind} · Sangamlung Gangmei`;
+const description = w.story;
+const pad = (n: number) => String(n).padStart(2, '0');
+
+// Facts from the record, minus what the page already says elsewhere.
+const facts = Object.entries(p.fields ?? {}).filter(([k]) => !['Built with'].includes(k));
+const video = p.links.find((l: any) => l.label === 'Workflow');
+const others = p.links.filter((l: any) => l !== video);
+
+const graph = [
+  {
+    '@type': 'WebPage', '@id': `${url}#page`, url, name: title, description,
+    isPartOf: { '@id': `${SITE}/#website` },
+    breadcrumb: { '@id': `${url}#crumbs` },
+    mainEntity: { '@id': `${url}#work` },
+  },
+  {
+    '@type': 'BreadcrumbList', '@id': `${url}#crumbs`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
+      { '@type': 'ListItem', position: 2, name: 'Work', item: `${SITE}/#work` },
+      { '@type': 'ListItem', position: 3, name: p.name, item: url },
+    ],
+  },
+  {
+    '@type': p.id === 'traffic-vision' ? 'ResearchProject' : category.id === 'apps' && /game/i.test(w.kind) ? 'VideoGame' : 'CreativeWork',
+    '@id': `${url}#work`,
+    name: p.name,
+    description: w.story,
+    url,
+    image: `${SITE}${posterOf(p)}`,
+    video: { '@type': 'VideoObject', name: `${p.name}: recording`, description: w.alt, contentUrl: `${SITE}${videoOf(p)}`, thumbnailUrl: `${SITE}${posterOf(p)}`, uploadDate: `${yearOf(p)}-01-01` },
+    dateCreated: yearOf(p),
+    creator: { '@id': PERSON_ID },
+    keywords: w.stack,
+    ...(others.find((l: any) => l.label === 'Visit site') && { sameAs: others.find((l: any) => l.label === 'Visit site').url }),
+  },
+];
+---
+<Base title={title} description={description} ogType="article" graph={graph}>
+  <article class="case">
+    <div class="wrap">
+      <nav class="crumbs label" aria-label="Breadcrumb">
+        <a href="/">home</a> / <a href={`/#work-${category.id}`}>{category.name.toLowerCase()}</a> / <span aria-current="page">{w.file}</span>
+      </nav>
+
+      <header class="head">
+        <p class="label">result</p>
+        <p class="result">{w.result}</p>
+        <h1><span class="name">{p.name}</span> <span class="kind">{w.kind} · {w.for}</span></h1>
+      </header>
+
+      <div class="top">
+        <p class="story">{w.story}</p>
+        <dl class="facts">
+          <div><dt>type</dt><dd>{w.type}</dd></div>
+          <div><dt>stack</dt><dd>{p.fields?.['Built with'] ?? w.stack}</dd></div>
+          <div><dt>year</dt><dd>{yearOf(p)}</dd></div>
+          {p.stamp && <div><dt>status</dt><dd>{p.stamp}</dd></div>}
+        </dl>
+      </div>
+
+      <div class="media" aria-label="The project at work">
+        <figure class="item shot" data-ar="1.6">
+          <video data-loop data-src={videoOf(p)} data-at={previewOf(p).at} poster={posterOf(p)} muted loop playsinline preload="none" controls
+            width="960" height="600" aria-label={`Recording: ${w.alt}`}>
+            <source src={videoOf(p)} type="video/mp4" />
+          </video>
+          <figcaption class="label">recording · {previewOf(p).note}</figcaption>
+        </figure>
+        {galleryOf(p).length > 0 && (
+          <div class="stills" aria-label="Stills">
+            {galleryOf(p).map(g => (
+              <figure class="item" data-ar={(g.w / g.h).toFixed(4)}>
+                <a href={g.src} class="still" data-full={g.src}>
+                  <img src={g.src} alt={g.alt} width={g.w} height={g.h} loading="lazy" decoding="async" />
+                </a>
+                <figcaption class="label">{g.caption}</figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
+      </div>
+      <dialog class="viewer" aria-label="Still, full size">
+        <img alt="" />
+        <button type="button" class="viewer-close">Close<span class="visually-hidden"> the full-size still</span> ✕</button>
+      </dialog>
+
+      <div class="cols">
+        <section aria-labelledby="does">
+          <h2 id="does" class="label">what it does</h2>
+          <ul>{w.points.map((t: string) => <li>{t}</li>)}</ul>
+        </section>
+        <section aria-labelledby="built">
+          <h2 id="built" class="label">how it's built</h2>
+          <ul>{w.build.map((t: string) => <li>{t}</li>)}</ul>
+        </section>
+      </div>
+
+      {(facts.length > 0 || p.team) && (
+        <section class="more" aria-labelledby="details">
+          <h2 id="details" class="label">details</h2>
+          <dl class="details">
+            {facts.map(([k, v]) => <div><dt>{k}</dt><dd><Rich value={v as any} /></dd></div>)}
+            {p.team && (
+              <div><dt>With</dt><dd>{p.team.map((m: any, i: number) => <>{i > 0 && ', '}{m.linkedin ? <a href={m.linkedin} rel="noopener">{m.name}</a> : m.name}</>)}</dd></div>
+            )}
+          </dl>
+        </section>
+      )}
+
+      <p class="links">
+        {others.map((l: any, i: number) => <a class:list={['button', i > 0 && 'button--ghost']} href={l.url} rel="noopener">{l.label} ↗</a>)}
+        {video && <a class="button button--ghost" href={video.url} rel="noopener">Watch the workflow ↗</a>}
+      </p>
+
+      <nav class="next" aria-label="Next project">
+        <span class="label">next file · {pad(((index + 1) % WORK.length) + 1)} / {pad(WORK.length)}</span>
+        <a href={workUrl(next)}><span class="next-file">{next.work.file}</span> <span class="next-name">{next.name} →</span></a>
+      </nav>
+    </div>
+  </article>
+  <MorungWeave offset={index * 12} />
+</Base>
+
+<script>
+  import { mountLoops } from '../../scripts/preview';
+  mountLoops();
+
+  // Stills open full size in a viewer (the link still works without it).
+  const viewer = document.querySelector<HTMLDialogElement>('.viewer');
+  if (viewer) {
+    const big = viewer.querySelector('img')!;
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('.still')) {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const img = a.querySelector('img')!;
+        big.src = a.dataset.full!; big.alt = img.alt;
+        viewer.showModal();
+      });
+    }
+    viewer.addEventListener('click', e => { if (e.target === viewer || (e.target as Element).closest('.viewer-close')) viewer.close(); });
+  }
+
+  // One row: the recording and the stills are as wide as their shapes need
+  // (flex-grow = width / height), so they all come out the same height and
+  // fill exactly one line, no taller than about 26rem. On a phone the
+  // recording has the first line and the stills share the second; if that
+  // would make them too small to read, they become a strip you swipe.
+  const row = document.querySelector<HTMLElement>('.media');
+  if (row) {
+    const shot = row.querySelector<HTMLElement>('.shot')!;
+    const strip = row.querySelector<HTMLElement>('.stills');
+    const stills = strip ? [...strip.querySelectorAll<HTMLElement>('.item')] : [];
+    const ar = (el: HTMLElement) => Number(el.dataset.ar);
+    const gapOf = (el: HTMLElement) => parseFloat(getComputedStyle(el).columnGap) || 0;
+    const layout = () => {
+      const phone = !matchMedia('(min-width: 860px)').matches;
+      const sum = stills.reduce((t, el) => t + ar(el), 0);
+      const inner = strip ? gapOf(strip) * (stills.length - 1) : 0;
+      let swipe = false;
+      if (strip) {
+        const h = (row.clientWidth - inner) / sum;
+        swipe = phone && h < 220;
+        strip.classList.toggle('swipe', swipe);
+        // Scaled up: flex-grow factors that add up to less than 1 only share out part of the space.
+        for (const el of stills) el.style.flex = swipe ? '' : `${ar(el) * 100} ${ar(el) * 100} 0px`;
+      }
+      if (phone) {
+        shot.style.flex = '';
+        if (strip) strip.style.flex = '';
+        row.style.maxWidth = '';
+        return;
+      }
+      // The strip's own gaps are spread over its width, so its height still matches.
+      shot.style.flex = '160 160 0px';
+      if (strip) strip.style.flex = `${sum * 100} ${sum * 100} ${inner}px`;
+      const cap = Math.min(416, innerHeight * 0.6);
+      row.style.maxWidth = `${Math.ceil((1.6 + sum) * cap + inner + (strip ? gapOf(row) : 0))}px`;
+    };
+    layout();
+    addEventListener('resize', layout);
+  }
+</script>
+
+<style>
+  .case { padding-block: clamp(2rem, 5vw, 3.5rem) clamp(3rem, 7vw, 5rem); }
+  .crumbs { margin-bottom: clamp(2.5rem, 6vw, 4.5rem); }
+  .crumbs::before { content: none; }
+  .crumbs a { color: var(--muted); text-underline-offset: 0.2em; }
+  .crumbs span { color: var(--ink); }
+  .result { margin: 0.75rem 0 1.5rem; font-size: clamp(2.4rem, 5.6vw, 4.6rem); font-weight: 300; line-height: 1.02; letter-spacing: -0.04em; max-width: 18ch; }
+  h1 { margin: 0; font-size: clamp(1.15rem, 1.8vw, 1.4rem); font-weight: 600; letter-spacing: -0.01em; }
+  h1 .kind { display: block; font-weight: 400; color: var(--muted); margin-top: 0.25rem; }
+  .top { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: clamp(2rem, 6vw, 5rem); margin: clamp(2.5rem, 5vw, 3.5rem) 0; padding-top: 2rem; border-top: 1px solid var(--line); }
+  .story { margin: 0; font-size: clamp(1.15rem, 1.6vw, 1.35rem); line-height: 1.55; }
+  .facts, .details { margin: 0; display: grid; gap: 0.75rem; font-size: 1rem; }
+  .facts div, .details div { display: grid; grid-template-columns: 6.5rem 1fr; gap: 1rem; }
+  .facts dt, .details dt { font: 400 0.8125rem/1.7 var(--mono); color: var(--muted); }
+  .facts dd, .details dd { margin: 0; }
+  .details div { grid-template-columns: 9rem 1fr; }
+  /* The recording, kept to a comfortable size, and the stills beside or below it. */
+  .media { display: flex; align-items: flex-start; gap: 1.25rem; margin: 0 0 clamp(3rem, 6vw, 4.5rem); }
+  .stills { display: flex; align-items: flex-start; gap: 1.25rem; min-width: 0; flex: 1 1 0; }
+  .media > .shot { flex: 1.6 1.6 0; }
+  .item { margin: 0; min-width: 0; flex: 1 1 0; }
+  /* Frames are drawn as a ring (box-shadow), not a border, so they take no room
+     and the recording and stills come out exactly the same height. */
+  .shot video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 0.75rem; box-shadow: 0 0 0 1px var(--line); background: var(--bg-raise); }
+  .item figcaption { margin-top: 0.6rem; font-size: 0.75rem; line-height: 1.4; }
+  .still { display: block; border-radius: 0.75rem; overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--bg-raise); cursor: zoom-in; }
+  .still img { display: block; width: 100%; height: auto; transition: transform 300ms ease; }
+  .still:hover img { transform: scale(1.03); }
+  .viewer { border: 0; padding: 0; background: transparent; max-width: min(92vw, 70rem); max-height: 92vh; }
+  .viewer::backdrop { background: rgb(0 0 0 / 0.8); }
+  .viewer img { display: block; max-width: 100%; max-height: 86vh; width: auto; height: auto; margin-inline: auto; border-radius: 0.5rem; }
+  .viewer-close { display: block; margin: 0.75rem auto 0; font: 400 0.875rem/1 var(--mono); color: #fff; background: rgb(255 255 255 / 0.1); border: 1px solid rgb(255 255 255 / 0.3); border-radius: 999px; padding: 0.6rem 1rem; cursor: pointer; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(2rem, 6vw, 5rem); margin-bottom: clamp(3rem, 6vw, 4.5rem); }
+  .cols h2, .more h2 { margin: 0 0 1rem; }
+  .cols ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 1rem; }
+  .cols li { padding-left: 1.5rem; position: relative; }
+  .cols li::before { content: ''; position: absolute; left: 0; top: 0.6em; width: 0.45rem; height: 0.45rem; background: var(--morung-red); }
+  .more { margin-bottom: 3rem; padding-top: 2rem; border-top: 1px solid var(--line); }
+  .details a { text-underline-offset: 0.2em; }
+  .links { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0 0 clamp(3rem, 7vw, 5rem); }
+  .next { display: flex; flex-direction: column; gap: 0.75rem; padding-top: 2rem; border-top: 1px solid var(--line); }
+  .next a { text-decoration: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1.25rem; }
+  .next-file { font: 400 0.9375rem/1 var(--mono); color: var(--muted); }
+  .next-name { font-size: clamp(1.75rem, 4vw, 3rem); font-weight: 300; letter-spacing: -0.03em; }
+  .next a:hover .next-name { color: var(--accent); }
+  @media (max-width: 860px) {
+    .top, .cols { grid-template-columns: 1fr; }
+    .media { flex-direction: column; align-items: stretch; gap: 1.5rem; }
+    .stills { gap: 0.75rem; }
+    /* Too small to read in one line: a strip you swipe, each still 18rem tall. */
+    .stills.swipe { overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 0.5rem; }
+    .stills.swipe .item { flex: none; scroll-snap-align: start; }
+    .stills.swipe .still img { height: 18rem; width: auto; max-width: none; }
+    .details div, .facts div { grid-template-columns: 1fr; gap: 0.1rem; }
+  }
+</style>

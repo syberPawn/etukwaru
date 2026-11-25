@@ -1,0 +1,235 @@
+---
+// Selected work: every project readable at a glance (outcome first, what it
+// is and who it's for, the story, the stack, separate buttons for the case
+// study and the live site), with a recording of the real system playing
+// beside it. On wide screens a pinned window plays the project being read and
+// switches as you scroll (see src/scripts/preview.ts); on phones each project
+// plays its own recording when it's on screen. An index at the top jumps
+// straight to any project. Without JavaScript every recording has controls.
+import { WORK, CATEGORIES, workUrl, videoOf, posterOf, previewOf, yearOf } from '../data/work.js';
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const link = (p: any, label: string) => p.links.find((l: any) => l.label === label);
+const short = (p: any) => p.name.replace(/: .*/, '').replace(' Enterprises', '');
+const clips = WORK.map(p => ({ id: p.id, src: videoOf(p), poster: posterOf(p), at: previewOf(p).at, artifact: p.work.artifact }));
+const kindOf = (p: any) => CATEGORIES.find(c => c.id === p.work.category)!.name;
+---
+<section id="work" class="work" aria-labelledby="work-title">
+  <div class="wrap">
+    <header class="sec-head">
+      <div>
+        <p class="label">selected work</p>
+        <h2 id="work-title" class="sec-title">Selected <em>work.</em></h2>
+      </div>
+      <p class="sec-lede">Six things built and running: for clients, for research, and for fun. Each one is shown working.</p>
+    </header>
+
+    <nav class="index" aria-label="Jump to a project">
+      <ol>
+        {WORK.map((p, i) => (
+          <li><a href={`#p-${p.id}`} data-id={p.id}><span class="ix-num">{pad(i + 1)}</span> {short(p)}</a></li>
+        ))}
+      </ol>
+    </nav>
+
+    <div class="showcase">
+      <ol class="entries">
+        {WORK.map((p, i) => {
+          const pv = previewOf(p);
+          const visit = link(p, 'Visit site'), flow = link(p, 'Workflow'), paper = link(p, 'Read the paper on IEEE');
+          return (
+            <li class="entry" id={`p-${p.id}`} data-id={p.id} data-window={pv.window} data-name={short(p)}>
+              <p class="meta"><span class="num">{pad(i + 1)}</span><span>{kindOf(p)}</span><span>{yearOf(p)}</span><span class="file">{p.work.file}</span></p>
+              <h3 class="name"><a href={workUrl(p)}>{p.name}</a></h3>
+              <p class="kind">{p.work.kind} · {p.work.for}</p>
+              <p class="result">{p.work.result}</p>
+              <figure class="inline-media">
+                <video data-loop data-src={videoOf(p)} data-at={pv.at} data-poster={posterOf(p)} muted loop playsinline preload="none" controls
+                  width="960" height="600" aria-label={`Recording: ${p.work.alt}`}>
+                  <source src={videoOf(p)} type="video/mp4" />
+                </video>
+                <figcaption class="label">recording · {pv.note}</figcaption>
+              </figure>
+              <p class="story">{p.work.story}</p>
+              <dl class="facts">
+                <div><dt>built with</dt><dd>{p.work.stack}</dd></div>
+                {p.stamp && <div><dt>status</dt><dd>{p.stamp}</dd></div>}
+              </dl>
+              <p class="actions">
+                <a class="button" href={workUrl(p)}>Case study<span class="visually-hidden">: {p.name}</span></a>
+                {visit && <a class="button button--ghost" href={visit.url} rel="noopener">Visit site<span class="visually-hidden">: {p.name}</span> ↗</a>}
+                {paper && <a class="button button--ghost" href={paper.url} rel="noopener">The paper ↗</a>}
+                {flow && <a class="button button--ghost" href={flow.url} rel="noopener">Watch the workflow ↗</a>}
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+
+      <aside class="stage" aria-hidden="true" hidden>
+        <a class="window" tabindex="-1" href={workUrl(WORK[0])}>
+          <span class="bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="title">{previewOf(WORK[0]).window}</span>
+            <span class="live">● live recording</span>
+          </span>
+          <span class="screen"><canvas></canvas></span>
+        </a>
+        <p class="stage-foot">
+          <span class="stage-name">{short(WORK[0])}</span>
+          <span class="stage-count"><span>01</span> / {pad(WORK.length)}</span>
+          <span class="spear"><span class="shaft"></span><svg viewBox="0 0 40 12"><path d="M0 6 L10 2.5 Q26 1 40 6 Q26 11 10 9.5 Z" /></svg></span>
+        </p>
+      </aside>
+    </div>
+  </div>
+  <script type="application/json" id="work-clips" set:html={JSON.stringify(clips).replace(/</g, '\\u003c')} />
+</section>
+
+<script>
+  import { mountPreview, mountLoops, type Clip } from '../scripts/preview';
+
+  const root = document.getElementById('work')!;
+  const entries = [...root.querySelectorAll<HTMLElement>('.entry')];
+  const stage = root.querySelector<HTMLElement>('.stage')!;
+  const win = stage.querySelector<HTMLAnchorElement>('.window')!;
+  const indexLinks = [...root.querySelectorAll<HTMLAnchorElement>('.index a')];
+  const clips: Clip[] = JSON.parse(document.getElementById('work-clips')!.textContent!);
+  const wide = matchMedia('(min-width: 1000px)');
+  const pad = (n: number) => String(n).padStart(2, '0');
+  root.classList.add('enhanced');
+
+  let preview: ReturnType<typeof mountPreview> | null = null;
+  let active = '';
+  let started = false;
+
+  function activate(id: string) {
+    if (id === active) return;
+    active = id;
+    const at = entries.findIndex(e => e.dataset.id === id);
+    const e = entries[at];
+    entries.forEach(x => x.classList.toggle('active', x === e));
+    indexLinks.forEach(a => a.toggleAttribute('aria-current', a.dataset.id === id));
+    if (!preview || !started) return;
+    win.href = e.querySelector<HTMLAnchorElement>('.name a')!.href;
+    stage.querySelector('.title')!.textContent = e.dataset.window ?? '';
+    stage.querySelector('.stage-name')!.textContent = e.dataset.name ?? '';
+    stage.querySelector('.stage-count span')!.textContent = pad(at + 1);
+    stage.querySelector<HTMLElement>('.spear')!.style.setProperty('--progress', String((at + 1) / entries.length));
+    preview.show(id);
+  }
+
+  // The project being read is the one crossing the middle of the screen.
+  const reading = new IntersectionObserver(list => {
+    for (const x of list) if (x.isIntersecting) activate((x.target as HTMLElement).dataset.id!);
+  }, { rootMargin: '-45% 0px -50% 0px' });
+  entries.forEach(e => {
+    reading.observe(e);
+    e.addEventListener('focusin', () => activate(e.dataset.id!));
+  });
+
+  function setup() {
+    if (wide.matches && !preview) {
+      stage.hidden = false;
+      preview = mountPreview(stage.querySelector('.screen')!, clips);
+      // The window fills in once the section is reached.
+      const first = new IntersectionObserver(([x]) => {
+        if (!x.isIntersecting) return;
+        first.disconnect();
+        started = true;
+        const id = active || entries[0].dataset.id!;
+        active = '';
+        activate(id);
+      }, { threshold: 0.2 });
+      first.observe(stage);
+    } else if (!wide.matches) {
+      stage.hidden = true;
+      mountLoops(root);
+    }
+  }
+  setup();
+  wide.addEventListener('change', setup);
+</script>
+
+<style>
+  .work { padding-block: clamp(4rem, 10vw, 8rem) 2rem; }
+
+  /* Index: every project, one click away. */
+  .index { margin: 0 0 clamp(2rem, 5vw, 3.5rem); position: sticky; top: 4.5rem; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .index ol { list-style: none; margin: 0; padding: 0.75rem 0; display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none; }
+  .index a {
+    display: inline-flex; align-items: baseline; gap: 0.45rem; white-space: nowrap; text-decoration: none;
+    padding: 0.5rem 0.9rem; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 0.9375rem;
+    transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease;
+  }
+  .ix-num { font: 400 0.75rem/1 var(--mono); }
+  .index a:hover { color: var(--ink); border-color: var(--muted); }
+  .index a[aria-current] { color: var(--ink); border-color: var(--ink); background: var(--bg-raise); }
+  .index a[aria-current] .ix-num { color: var(--accent); }
+
+  .showcase { display: grid; grid-template-columns: 1fr; gap: 0 clamp(2rem, 5vw, 4.5rem); }
+  @media (min-width: 1000px) { .enhanced .showcase { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); } }
+
+  /* Projects */
+  .entries { list-style: none; margin: 0; padding: 0; }
+  .entry { padding-block: clamp(2.5rem, 7vh, 4.5rem); border-top: 1px solid var(--line); scroll-margin-top: 9rem; transition: opacity 300ms ease; }
+  .entry:first-child { border-top: 0; padding-top: 0.5rem; }
+  .meta { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0 0 0.9rem; font: 400 0.8125rem/1.4 var(--mono); color: var(--muted); }
+  .meta .num { color: var(--accent); }
+  .meta .file::before { content: '// '; }
+  .name { margin: 0; font-size: clamp(1.6rem, 2.6vw, 2.2rem); font-weight: 500; letter-spacing: -0.025em; line-height: 1.1; }
+  .name a { text-decoration: none; background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size 250ms ease; }
+  .name a:hover { background-size: 100% 1px; }
+  .kind { margin: 0.4rem 0 1.25rem; color: var(--muted); }
+  .result { margin: 0 0 1.25rem; font-size: clamp(1.25rem, 1.9vw, 1.6rem); line-height: 1.25; font-weight: 300; letter-spacing: -0.02em; max-width: 30rem; }
+  .story { margin: 0 0 1.5rem; max-width: 36rem; }
+  .facts { margin: 0 0 1.75rem; display: grid; gap: 0.45rem; font: 400 0.875rem/1.5 var(--mono); }
+  .facts div { display: grid; grid-template-columns: 6.5rem 1fr; gap: 1rem; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0; }
+  .actions .button { min-height: 2.75rem; padding: 0.6rem 1.2rem; font-size: 1rem; }
+
+  /* The recording inside each project: phones, and without JavaScript. */
+  .inline-media { margin: 0 0 1.5rem; }
+  .inline-media video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 0.75rem; border: 1px solid var(--line); background: var(--bg-raise); }
+  .inline-media figcaption { margin-top: 0.6rem; font-size: 0.75rem; }
+
+  /* Wide screens with JavaScript: the pinned window plays instead, and the
+     projects not being read step back. */
+  @media (min-width: 1000px) {
+    .enhanced .inline-media { display: none; }
+    .enhanced .entry { min-height: 62vh; display: flex; flex-direction: column; justify-content: center; }
+    .enhanced .entry:not(.active) { opacity: 0.38; }
+    .enhanced .entry:not(.active):hover { opacity: 0.7; }
+  }
+
+  .stage { position: sticky; top: max(9rem, calc(50vh - 15.5rem)); align-self: start; margin-top: 0.5rem; }
+  .stage[hidden] { display: none; }
+  .window {
+    display: block; text-decoration: none; color: inherit; border: 1px solid var(--line); border-radius: 0.9rem; overflow: hidden;
+    background: var(--bg-raise); box-shadow: 0 1.5rem 4rem -2rem rgb(0 0 0 / 0.55);
+    transition: transform 400ms cubic-bezier(.2, .7, .2, 1), box-shadow 400ms ease;
+  }
+  .window:hover { transform: translateY(-3px); box-shadow: 0 2rem 5rem -2rem rgb(0 0 0 / 0.65); }
+  .bar { display: flex; align-items: center; gap: 0.9rem; padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--line); font: 400 0.75rem/1 var(--mono); color: var(--muted); }
+  .dots { display: flex; gap: 0.35rem; }
+  .dots i { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--morung-red); }
+  .dots i:nth-child(2) { background: var(--morung-yellow); }
+  .dots i:nth-child(3) { background: var(--morung-green); }
+  .title { flex: 1; text-align: center; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .live { color: var(--accent); }
+  .screen { position: relative; display: block; aspect-ratio: 16 / 10; background: var(--bg); overflow: hidden; }
+  .screen :global(video) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 350ms ease; }
+  .screen :global(video.on) { opacity: 1; }
+  .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+  .stage-foot { display: flex; align-items: center; gap: 1rem; margin: 0.9rem 0.25rem 0; font: 400 0.8125rem/1 var(--mono); color: var(--muted); }
+  .stage-name { color: var(--ink); margin-right: auto; }
+  .spear { --progress: 0.16; display: flex; align-items: center; width: 9rem; }
+  .shaft { height: 2px; flex: 0 0 calc(var(--progress) * 100% - 1.5rem); min-width: 0.5rem; background: var(--accent); transition: flex-basis 400ms ease; }
+  .spear svg { width: 1.5rem; height: auto; fill: var(--accent); flex: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .entry, .window, .screen :global(video), .shaft { transition: none; }
+  }
+</style>

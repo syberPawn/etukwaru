@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Drive the dump truck · Sangamlung Gangmei</title>
+<meta name="description" content="An interactive portfolio by Sangamlung Gangmei: drive a garbage truck down an endless road past a billboard for each project, and tip out the junk to read the records.">
+<meta name="author" content="Sangamlung Gangmei">
+<link rel="canonical" href="https://etukwaru.online/truck/">
+<meta name="theme-color" content="#2a241c">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="etukwaru.online">
+<meta property="og:title" content="Drive the dump truck · Sangamlung Gangmei">
+<meta property="og:description" content="An interactive portfolio by Sangamlung Gangmei: drive a garbage truck down an endless road past a billboard for each project, and tip out the junk to read the records.">
+<meta property="og:url" content="https://etukwaru.online/truck/">
+<meta property="og:image" content="https://etukwaru.online/truck/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A garbage truck at a dumping ground, with the name Sangamlung Gangmei">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="styles.css">
+<link rel="modulepreload" href="src/main.js">
+<!-- Start every big download at once, instead of one after another. -->
+<link rel="modulepreload" href="vendor/rapier.mjs">
+<link rel="preload" href="vendor/rapier_bg.wasm" as="fetch" type="application/wasm" crossorigin>
+<link rel="preload" href="assets/parts/manifest.json" as="fetch" crossorigin>
+<link rel="preload" href="assets/parts/chassis.webp" as="image">
+<link rel="preload" href="assets/parts/bed.webp" as="image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://etukwaru.online/truck/#page","url":"https://etukwaru.online/truck/","name":"Drive the dump truck · Sangamlung Gangmei","description":"An interactive portfolio by Sangamlung Gangmei: drive a garbage truck down an endless road past a billboard for each project, and tip out the junk to read the records.","isPartOf":{"@id":"https://etukwaru.online/#website"},"author":{"@id":"https://etukwaru.online/#sangamlung"}}</script>
+</head>
+<body>
+<a class="skip-link" href="#text">Skip to the text version</a>
+<canvas id="scene" role="img" aria-label="A garbage truck at a dumping ground, with a billboard for each project along the road. Everything here is also in the text version."></canvas>
+
+<div id="controls">
+  <button id="unload" type="button" disabled>Loading…</button>
+  <p id="hint" role="status"></p>
+</div>
+
+<div id="steer" role="group" aria-label="Drive direction">
+  <div class="arrows">
+    <button id="go-forward" type="button" aria-label="Drive forward" aria-keyshortcuts="ArrowLeft" aria-pressed="false"><span aria-hidden="true">◀</span></button>
+    <button id="go-backward" type="button" aria-label="Drive backward" aria-keyshortcuts="ArrowRight" aria-pressed="false"><span aria-hidden="true">▶</span></button>
+  </div>
+</div>
+
+<button id="mute" type="button" aria-pressed="false">Sound on</button>
+
+<main id="text" tabindex="-1" aria-labelledby="text-title">
+  <h1 id="text-title">Sangamlung Gangmei</h1>
+  <p class="text-lede">Freelance software engineer based in Dimapur, Nagaland. Research published by IEEE.</p>
+  <div id="text-entries"></div>
+</main>
+
+<dialog id="tag" aria-labelledby="tag-name">
+  <article class="paper" tabindex="-1" autofocus>
+    <button id="tag-close" type="button" aria-label="Close">×</button>
+    <header class="paper-head">
+      <span class="paper-seal" aria-hidden="true"></span>
+      <div>
+        <p class="paper-gov">Government of Etukwaru</p>
+        <p class="paper-dept">Department of Waste &amp; Salvage</p>
+      </div>
+    </header>
+    <div class="paper-form">
+      <span id="tag-form">Salvage record · Form WD-27</span>
+      <span id="tag-number">Project no. <span id="tag-file" class="paper-typed"></span></span>
+    </div>
+    <p id="tag-stamp" class="paper-stamp"></p>
+    <h2 id="tag-name"></h2>
+    <div id="tag-brief"></div>
+    <dl id="tag-fields"></dl>
+    <div id="tag-links" class="paper-actions"></div>
+    <p id="tag-status" class="visually-hidden" role="status"></p>
+    <footer class="paper-foot">
+      <span>Received at the dump</span>
+      <span class="paper-officer"><span class="paper-sign">S.Gangmei</span>Officer in charge</span>
+    </footer>
+  </article>
+</dialog>
+
+<noscript><p class="noscript">The truck needs JavaScript to tip.</p></noscript>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

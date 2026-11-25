@@ -1,0 +1,25 @@
+---
+import Base from '../layouts/Base.astro';
+import { WORK, workUrl } from '../data/work.js';
+---
+<Base noindex title="Page not found · Sangamlung Gangmei" description="This page doesn't exist. The work, the research and the contact details are one click away.">
+  <section class="nf">
+    <div class="wrap">
+      <p class="label">404</p>
+      <h1 class="sec-title">This file <em>doesn't exist.</em></h1>
+      <p class="sec-lede">The link may be old or mistyped. Try one of these.</p>
+      <ul>
+        <li><a href="/">Home</a></li>
+        {WORK.map(p => <li><a href={workUrl(p)}>{p.name}</a></li>)}
+        <li><a href="/about/">About</a></li>
+        <li><a href="/#contact">Contact</a></li>
+      </ul>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .nf { padding-block: clamp(3rem, 10vw, 7rem); }
+  ul { margin: 2rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; font: 400 1rem/1.5 var(--mono); }
+  a { text-underline-offset: 0.25em; }
+</style>
